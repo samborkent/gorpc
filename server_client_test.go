@@ -93,8 +93,8 @@ func testHandler(ctx context.Context, req *request) (*response, error) {
 		return &successResponse, nil
 	default:
 		return nil, &gorpc.Error{
-			Code: http.StatusNotFound,
-			Text: http.StatusText(http.StatusNotFound),
+			Code: http.StatusUnavailableForLegalReasons,
+			Text: "FOOBAR",
 		}
 	}
 }

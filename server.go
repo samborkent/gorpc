@@ -32,8 +32,6 @@ func NewServer(port int) *Server {
 	}
 
 	protocols := new(http.Protocols)
-	protocols.SetHTTP1(true)
-	protocols.SetHTTP2(true)
 	protocols.SetUnencryptedHTTP2(true)
 
 	return &Server{
