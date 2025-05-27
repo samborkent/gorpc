@@ -13,8 +13,8 @@ func decodeConcrete[T any](r io.Reader) (T, error) {
 	// TODO: avoid allocation
 	d := make([]byte, unsafe.Sizeof(*new(T)))
 
-	_, err := r.Read(d)
-	if err != nil {
+	n, err := r.Read(d)
+	if n == 0 && err != nil && !errors.Is(err, io.EOF) {
 		return *new(T), err
 	}
 

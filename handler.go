@@ -53,7 +53,7 @@ func handler[Request, Response any](h HandlerFunc[Request, Response]) http.Handl
 		if err != nil {
 			slog.ErrorContext(r.Context(), "server error: "+err.Error())
 
-			e := &Error{}
+			var e *Error
 			if errors.As(err, &e) {
 				http.Error(w, e.Text, e.Code)
 				return

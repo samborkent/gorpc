@@ -242,6 +242,11 @@ func decodeValue(r io.Reader, v reflect.Value) error {
 			return fmt.Errorf("decoding string length: %w", err)
 		}
 
+		if length == 0 {
+			v.SetString("")
+			return nil
+		}
+
 		// TODO: sync.Pool
 		d := make([]byte, length)
 

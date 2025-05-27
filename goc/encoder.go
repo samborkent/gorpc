@@ -280,7 +280,8 @@ func encodeValue(w io.Writer, v reflect.Value) error {
 			return fmt.Errorf("encoding string len: %w", err)
 		}
 
-		_, err := w.Write(convert.StringToBytes(v.String()))
+		// _, err := w.Write(convert.StringToBytes(v.String()))
+		_, err := w.Write([]byte(v.String()))
 		if err != nil {
 			return fmt.Errorf("encoding string: %w", err)
 		}
