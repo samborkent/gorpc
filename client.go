@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"hash/maphash"
 	"net/http"
 	"strings"
+	"sync"
+	"weak"
 
 	"github.com/samborkent/gorpc/goc"
 )
@@ -13,7 +16,11 @@ import (
 type Client[Request, Response any] struct {
 	client     *http.Client
 	addr, hash string
-	validate bool
+	// TODO: use sync.Map?
+	cache map[uint64]weak.Pointer[Response]
+	cacheLock *sync.RWMutex
+	seed maphash.Seed
+	cacheResponse, validate bool
 }
 
 func NewClient[Request, Response any](addr string, options ...ClientOption) *Client[Request, Response] {
@@ -31,6 +38,10 @@ func NewClient[Request, Response any](addr string, options ...ClientOption) *Cli
 		},
 		addr: strings.TrimRight(addr, "/") + "/" + hash,
 		hash: hash,
+		cache: m,
+		cacheLock: new(sync.RWMutex),
+		seed: maphash.MakeSeed(),
+		cacheResponse: cfg.cacheResponse,
 		validate: cfg.validate,
 	}
 }
@@ -52,6 +63,22 @@ func (c *Client[Request, Response]) do(ctx context.Context, req *Request) (*Resp
 	data, err := goc.Encode(req)
 	if err != nil {
 		return nil, fmt.Errorf("encoding request: %w", err)
+	}
+
+	var payloadHash uint64
+
+	if c.cacheResponse {
+		payloadHash = maphash.Bytes(c.seed, data)
+	
+		// TODO: get rid of lock
+		c.cacheLock.RLock()
+		res, ok := c.cache[payloadHash]
+		c.cacheLock.RUnlock()
+
+		if ok && res.Value != nil {
+			// TODO: resolve race-condition
+			return res.Value, nil
+		}
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.addr, bytes.NewReader(data))
@@ -77,6 +104,14 @@ func (c *Client[Request, Response]) do(ctx context.Context, req *Request) (*Resp
 	res, err := goc.DecodeFrom[Response](httpRes.Body)
 	if err != nil {
 		return nil, fmt.Errorf("decoding response: %w", err)
+	}
+
+	if c.cacheResponse && payloadHash != 0 {
+		weakRef := weak.Make(res)
+	
+		c.cacheLock.Lock()
+		c.cache[payloadHash] = weakRef
+		c.cacheLock.Unlock()
 	}
 
 	return &res, nil

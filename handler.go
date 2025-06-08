@@ -3,7 +3,9 @@ package gorpc
 import (
 	"context"
 	"errors"
+	"hash/maphash"
 	"net/http"
+	"sync"
 	"unique"
 
 	"github.com/samborkent/gorpc/goc"
@@ -27,9 +29,20 @@ const (
 	httpErrResponse           = "Error encoding or writing response"
 )
 
-func handler[Request, Response any](h HandlerFunc[Request, Response]) http.HandlerFunc {
+func handler[Request, Response any](h HandlerFunc[Request, Response], cacheResponse bool) http.HandlerFunc {
 	hsh := h.Hash()
 	hshHandle := unique.Make(hsh)
+
+	var seed maphash.Seed
+	// TODO: use sync.Map?
+	var cache map[uint64]weak.Pointer[Response]
+	var cacheLock *sync.RWMutex
+
+	if cacheResponse {
+		seed = maphash.MakeSeed()
+		cache = make(map[uint64]weak.Pointer[Response])
+		cacheLock = new(sync.RWMutex)
+	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer func() { _ = r.Body.Close() }()
@@ -59,11 +72,43 @@ func handler[Request, Response any](h HandlerFunc[Request, Response]) http.Handl
 			return
 		}
 
+		// TODO; reject requests which have content length not set
+
+		var req Request
+		var payloadHash uint64
+
 		// Decode request.
-		req, err := goc.DecodeFrom[Request](r.Body)
-		if err != nil {
-			http.Error(w, httpErrRequest, http.StatusBadRequest)
-			return
+		if cacheResponse {
+			// TODO: read until content length
+			body, err := io.ReadAll(req.Body)
+			if err != nil {
+				// TODO: revise error
+				http.Error(w, httpErrRequest, http.StatusBadRequest)
+				return
+			}
+
+			payloadHash = maphash.Bytes(seed, body)
+
+			cacheLock.RLock()
+			res, ok := cache[payloadHash]
+			cacheLock.RUnlock()
+
+			if ok && res.Value != nil {
+				//TODO: resolve race condition
+				return res.Value, nil
+			}
+
+			req, err = goc.Decode[Request](body)
+			if err != nil {
+				http.Error(w, httpErrRequest, http.StatusBadRequest)
+				return
+			}
+		} else {
+			req, err = goc.DecodeFrom[Request](r.Body)
+			if err != nil {
+				http.Error(w, httpErrRequest, http.StatusBadRequest)
+				return
+			}
 		}
 
 		// Call handler func.
@@ -85,9 +130,22 @@ func handler[Request, Response any](h HandlerFunc[Request, Response]) http.Handl
 		w.Header().Set(HeaderMethodHash, hsh)
 
 		// Encode and return response.
-		if err := goc.EncodeTo(w, res); err != nil {
-			http.Error(w, httpErrResponse, http.StatusInternalServerError)
-			return
+		if cacheResponse && payloadHash > 0 {
+			res, err := goc.Encode(res)
+			if err != nil {
+				http.Error(w, httpErrResponse, http.StatusInternalServerError)
+				return
+			}
+
+			cacheLock.Lock()
+			// TODO: does it even make sense to use weak pointer cache for server?
+			cache[payloadHash] = weak.Make(&res)
+			cacheLock.Unlock()
+		} else {
+			if err := goc.EncodeTo(w, res); err != nil {
+				http.Error(w, httpErrResponse, http.StatusInternalServerError)
+				return
+			}
 		}
 	}
 }
