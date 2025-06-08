@@ -17,6 +17,7 @@ type Server struct {
 	server  *http.Server
 	running atomic.Bool
 	port    int
+	validate bool
 }
 
 const (
@@ -25,22 +26,25 @@ const (
 )
 
 // NewServer retuns a new goRPC [Server].
-func NewServer(port int) *Server {
+func NewServer(port int, options ...ServerOption) *Server {
 	// Use a random port.
 	if port <= 0 {
 		port = portMin + rand.IntN(portMax-portMin)
 	}
 
-	protocols := new(http.Protocols)
-	protocols.SetUnencryptedHTTP2(true)
+	cfg := serverConfig{}
+	for _, option := range options {
+		option(&cfg)
+	}
 
 	return &Server{
 		mux: http.NewServeMux(),
 		server: &http.Server{
 			Addr:      ":" + strconv.Itoa(port),
-			Protocols: protocols,
+			Protocols: httpProtocols,
 		},
 		port: port,
+		validate: cfg.validate,
 	}
 }
 
@@ -48,6 +52,10 @@ func NewServer(port int) *Server {
 func Register[Request, Response any](s *Server, h HandlerFunc[Request, Response]) {
 	if s.running.Load() {
 		panic("goRPC: cannot register a new handler for a running server")
+	}
+
+	if s.validate {
+		h = ValidationMiddleware(h)
 	}
 
 	s.mux.Handle("POST /"+h.Hash(), handler(h))

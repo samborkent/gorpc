@@ -13,27 +13,41 @@ import (
 type Client[Request, Response any] struct {
 	client     *http.Client
 	addr, hash string
+	validate bool
 }
 
-func NewClient[Request, Response any](addr string) *Client[Request, Response] {
-	protocols := new(http.Protocols)
-	protocols.SetUnencryptedHTTP2(true)
+func NewClient[Request, Response any](addr string, options ...ClientOption) *Client[Request, Response] {
+	cfg := clientConfig{}
+	for _, option := range options {
+		option(&cfg)
+	}
 
 	hash := hashMethod[Request, Response]()
 
 	return &Client[Request, Response]{
 		client: &http.Client{
-			Transport: &http.Transport{
-				ForceAttemptHTTP2: true,
-				Protocols:         protocols,
-			},
+			// TODO: fix this, this should be a *http.Transport
+			Transport: &httpDefaultTransport,
 		},
 		addr: strings.TrimRight(addr, "/") + "/" + hash,
 		hash: hash,
+		validate: cfg.validate,
 	}
 }
 
 func (c *Client[Request, Response]) Do(ctx context.Context, req *Request) (*Response, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	if c.validate {
+		return ValidationRoundTripper(c.do)(ctx, req)
+	}
+
+	return c.do(ctx, req)
+}
+
+func (c *Client[Request, Response]) do(ctx context.Context, req *Request) (*Response, error) {
 	// TODO: use []byte pool
 	data, err := goc.Encode(req)
 	if err != nil {
