@@ -95,13 +95,13 @@ var (
 
 func EncodeValue(w io.Writer, v reflect.Value) error {
 	if v.Type().Implements(reflectEncodeWriter) {
-		if err := v.Interface().(EncodeWriter).EncodeTo(w); err != nil {
+		if err := reflect.TypeAssert[EncodeWriter](v).EncodeTo(w); err != nil {
 			return fmt.Errorf("EncodeWriter: %w", err)
 		}
 
 		return nil
 	} else if v.Type().Implements(reflectEncoder) {
-		encoded, err := v.Interface().(Encoder).Encode()
+		encoded, err := reflect.TypeAssert[Encoder](v).Encode()
 		if err != nil {
 			return fmt.Errorf("Encoder: %w", err)
 		}
@@ -111,7 +111,7 @@ func EncodeValue(w io.Writer, v reflect.Value) error {
 			return fmt.Errorf("Encoder: write: %w", err)
 		}
 	} else if v.Type().Implements(reflectBinaryMarshaller) {
-		encoded, err := v.Interface().(encoding.BinaryMarshaler).MarshalBinary()
+		encoded, err := reflect.TypeAssert[encoding.BinaryMarshaler](v).MarshalBinary()
 		if err != nil {
 			return fmt.Errorf("BinaryMarshaler: %w", err)
 		}
@@ -321,31 +321,31 @@ func encodeValue(w io.Writer, v reflect.Value) error {
 		if v.Kind() == reflect.Slice {
 			switch elemType.Kind() {
 			case reflect.Bool:
-				if err := encodeConcreteSlice(w, v.Interface().([]bool)); err != nil {
+				if err := encodeConcreteSlice(w, reflect.TypeAssert[[]bool](v)); err != nil {
 					return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
 				}
 
 				return nil
 			case reflect.Int8:
-				if err := encodeConcreteSlice(w, v.Interface().([]int8)); err != nil {
+				if err := encodeConcreteSlice(w, reflect.TypeAssert[[]int8](v)); err != nil {
 					return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
 				}
 
 				return nil
 			case reflect.Int16:
-				if err := encodeConcreteSlice(w, v.Interface().([]int16)); err != nil {
+				if err := encodeConcreteSlice(w, reflect.TypeAssert[[]int16](v)); err != nil {
 					return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
 				}
 
 				return nil
 			case reflect.Int32:
-				if err := encodeConcreteSlice(w, v.Interface().([]int32)); err != nil {
+				if err := encodeConcreteSlice(w, reflect.TypeAssert[[]int32](v)); err != nil {
 					return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
 				}
 
 				return nil
 			case reflect.Int64:
-				if err := encodeConcreteSlice(w, v.Interface().([]int64)); err != nil {
+				if err := encodeConcreteSlice(w, reflect.TypeAssert[[]int64](v)); err != nil {
 					return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
 				}
 
@@ -357,43 +357,43 @@ func encodeValue(w io.Writer, v reflect.Value) error {
 
 				return nil
 			case reflect.Uint16:
-				if err := encodeConcreteSlice(w, v.Interface().([]uint16)); err != nil {
+				if err := encodeConcreteSlice(w, reflect.TypeAssert[[]uint16](v)); err != nil {
 					return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
 				}
 
 				return nil
 			case reflect.Uint32:
-				if err := encodeConcreteSlice(w, v.Interface().([]uint32)); err != nil {
+				if err := encodeConcreteSlice(w, reflect.TypeAssert[[]uint32](v)); err != nil {
 					return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
 				}
 
 				return nil
 			case reflect.Uint64:
-				if err := encodeConcreteSlice(w, v.Interface().([]uint64)); err != nil {
+				if err := encodeConcreteSlice(w, reflect.TypeAssert[[]uint64](v)); err != nil {
 					return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
 				}
 
 				return nil
 			case reflect.Float32:
-				if err := encodeConcreteSlice(w, v.Interface().([]float32)); err != nil {
+				if err := encodeConcreteSlice(w, reflect.TypeAssert[[]float32](v)); err != nil {
 					return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
 				}
 
 				return nil
 			case reflect.Float64:
-				if err := encodeConcreteSlice(w, v.Interface().([]float64)); err != nil {
+				if err := encodeConcreteSlice(w, reflect.TypeAssert[[]float64](v)); err != nil {
 					return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
 				}
 
 				return nil
 			case reflect.Complex64:
-				if err := encodeConcreteSlice(w, v.Interface().([]complex64)); err != nil {
+				if err := encodeConcreteSlice(w, reflect.TypeAssert[[]complex64](v)); err != nil {
 					return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
 				}
 
 				return nil
 			case reflect.Complex128:
-				if err := encodeConcreteSlice(w, v.Interface().([]complex128)); err != nil {
+				if err := encodeConcreteSlice(w, reflect.TypeAssert[[]complex128](v)); err != nil {
 					return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
 				}
 
