@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"hash/maphash"
+	"io"
 	"net/http"
 	"sync"
 	"unique"
+	"weak"
 
 	"github.com/samborkent/gorpc/goc"
 )
@@ -21,13 +23,13 @@ func (h HandlerFunc[Request, Response]) Hash() string {
 }
 
 const (
-	httpErrInvalidMethod      = "Invalid HTTP method"
-	httpErrInvalidContentType = "Invalid Content-Type header value"
+	httpErrInvalidMethod       = "Invalid HTTP method"
+	httpErrInvalidContentType  = "Invalid Content-Type header value"
 	httpErrInvalidAcceptHeader = "Accept header does not allow goc encoding"
-	httpErrMissingMethodHash  = "Missing X-Method-Hash header"
-	httpErrInvalidMethodHash  = "Invalid X-Method-Hash header value"
-	httpErrRequest            = "Error decoding request"
-	httpErrResponse           = "Error encoding or writing response"
+	httpErrMissingMethodHash   = "Missing X-Method-Hash header"
+	httpErrInvalidMethodHash   = "Invalid X-Method-Hash header value"
+	httpErrRequest             = "Error decoding request"
+	httpErrResponse            = "Error encoding or writing response"
 )
 
 func handler[Request, Response any](h HandlerFunc[Request, Response], cacheResponse bool) http.HandlerFunc {
@@ -41,14 +43,14 @@ func handler[Request, Response any](h HandlerFunc[Request, Response], cacheRespo
 
 	if cacheResponse {
 		seed = maphash.MakeSeed()
-		cache = make(map[uint64]weak.Pointer[Response])
+		cache = make(map[uint64]weak.Pointer[Response], 1)
 		cacheLock = new(sync.RWMutex)
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Only POST requests are supported.
 		if r.Method != http.MethodPost {
-			http.Error(w, httpErrInvalidMethod, http.StatusMethodNotAcceptable)
+			http.Error(w, httpErrInvalidMethod, http.StatusMethodNotAllowed)
 			return
 		}
 
@@ -61,7 +63,7 @@ func handler[Request, Response any](h HandlerFunc[Request, Response], cacheRespo
 
 		acceptType := r.Header.Get(HeaderAccept)
 		if acceptType != MIMEType {
-			http.Error(w, httpErrInvalidAcceptHeader, http.StatusUnacceptable)
+			http.Error(w, httpErrInvalidAcceptHeader, http.StatusNotAcceptable)
 			return
 		}
 
@@ -79,8 +81,11 @@ func handler[Request, Response any](h HandlerFunc[Request, Response], cacheRespo
 
 		// TODO; reject requests which have content length not set
 
-		var req Request
-		var payloadHash uint64
+		var (
+			req         Request
+			err         error
+			payloadHash uint64
+		)
 
 		// Decode request.
 		if cacheResponse {
@@ -99,15 +104,12 @@ func handler[Request, Response any](h HandlerFunc[Request, Response], cacheRespo
 			res, ok := cache[payloadHash]
 			cacheLock.RUnlock()
 
-			if ok && res.Value != nil {
-				//TODO: resolve race condition
-				return res.Value, nil
-			}
-
-			req, err = goc.Decode[Request](body)
-			if err != nil {
-				http.Error(w, httpErrRequest, http.StatusBadRequest)
-				return
+			if ok && res.Value() != nil {
+				req, err = goc.Decode[Request](body)
+				if err != nil {
+					http.Error(w, httpErrRequest, http.StatusBadRequest)
+					return
+				}
 			}
 		} else {
 			req, err = goc.DecodeFrom[Request](r.Body)
@@ -139,7 +141,7 @@ func handler[Request, Response any](h HandlerFunc[Request, Response], cacheRespo
 
 		// Encode and return response.
 		if cacheResponse && payloadHash > 0 {
-			res, err := goc.Encode(res)
+			payload, err := goc.Encode(res)
 			if err != nil {
 				http.Error(w, httpErrResponse, http.StatusInternalServerError)
 				return
@@ -147,16 +149,20 @@ func handler[Request, Response any](h HandlerFunc[Request, Response], cacheRespo
 
 			cacheLock.Lock()
 			// TODO: does it even make sense to use weak pointer cache for server?
-			cache[payloadHash] = weak.Make(&res)
+			cache[payloadHash] = weak.Make(res)
 			cacheLock.Unlock()
+
+			_, _ = w.Write(payload)
 		} else {
 			// TODO: define constants
 			w.Header().Set("Cache-Control", "no-store")
-		
+
 			if err := goc.EncodeTo(w, res); err != nil {
 				http.Error(w, httpErrResponse, http.StatusInternalServerError)
 				return
 			}
 		}
+
+		w.WriteHeader(http.StatusOK)
 	}
 }

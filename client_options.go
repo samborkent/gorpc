@@ -1,15 +1,20 @@
 package gorpc
 
+import (
+	"errors"
+	"net/http"
+)
+
 type ClientOption func(*clientConfig) error
 
 var ErrClientNil = errors.New("WithHTTPClient: client nil-pointer")
 
 func WithCache() ClientOption {
-	return func(cfg *clientConfig) {
+	return func(cfg *clientConfig) error {
 		if cfg.withCache {
 			return ErrOptionDuplicate
 		}
-	
+
 		cfg.cacheResponse = true
 		cfg.withCache = true
 
@@ -19,7 +24,7 @@ func WithCache() ClientOption {
 
 func WithHTTPClient(client *http.Client) ClientOption {
 	return func(cfg *clientConfig) error {
-		if cfg.withClient {
+		if cfg.withHTTPClient {
 			return ErrOptionDuplicate
 		}
 
@@ -29,17 +34,17 @@ func WithHTTPClient(client *http.Client) ClientOption {
 
 		cfg.client = client
 		cfg.withHTTPClient = true
-	
+
 		return nil
 	}
 }
 
-func WithValidation() ClientOption {
-	return func(cfg *clientConfig) {
+func WithClientValidation() ClientOption {
+	return func(cfg *clientConfig) error {
 		if cfg.withValidation {
 			return ErrOptionDuplicate
 		}
-	
+
 		cfg.validate = true
 		cfg.withValidation = true
 
@@ -49,11 +54,11 @@ func WithValidation() ClientOption {
 
 type clientConfig struct {
 	cacheResponse bool
-	withCache bool
+	withCache     bool
 
-	client *http.Client
+	client         *http.Client
 	withHTTPClient bool
-	
-	validate bool
+
+	validate       bool
 	withValidation bool
 }

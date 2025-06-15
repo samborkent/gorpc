@@ -13,11 +13,11 @@ import (
 
 // Server implements a goRPC server.
 type Server struct {
-	mux     *http.ServeMux
-	server  *http.Server
-	running atomic.Bool
-	port    int
-	validate bool
+	mux                     *http.ServeMux
+	server                  *http.Server
+	running                 atomic.Bool
+	port                    int
+	cacheResponse, validate bool
 }
 
 const (
@@ -26,7 +26,7 @@ const (
 )
 
 // NewServer retuns a new goRPC [Server].
-func NewServer(port int, options ...ServerOption) *Server {
+func NewServer(port int, options ...ServerOption) (*Server, error) {
 	// Use a random port.
 	if port <= 0 {
 		port = portMin + rand.IntN(portMax-portMin)
@@ -35,7 +35,7 @@ func NewServer(port int, options ...ServerOption) *Server {
 	cfg := serverConfig{}
 	for _, option := range options {
 		if err := option(&cfg); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -51,11 +51,12 @@ func NewServer(port int, options ...ServerOption) *Server {
 	}
 
 	return &Server{
-		mux: http.NewServeMux(),
-		server: server,
-		port: port,
-		validate: cfg.validate,
-	}
+		mux:           http.NewServeMux(),
+		server:        server,
+		port:          port,
+		cacheResponse: cfg.validate,
+		validate:      cfg.validate,
+	}, nil
 }
 
 // Register registers a [HandlerFunc] to a goRPC [Server]. Panics when the server is already running.
@@ -68,7 +69,7 @@ func Register[Request, Response any](s *Server, h HandlerFunc[Request, Response]
 		h = ValidationMiddleware(h)
 	}
 
-	s.mux.Handle("POST /"+h.Hash(), handler(h))
+	s.mux.Handle("POST /"+h.Hash(), handler(h, s.cacheResponse))
 }
 
 // Addr returns the server address.

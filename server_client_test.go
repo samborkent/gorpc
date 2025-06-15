@@ -19,7 +19,11 @@ func TestServerClient(t *testing.T) {
 
 	t.Log(gorpc.HandlerFunc[request, response](testHandler).Hash())
 
-	server := gorpc.NewServer(-1)
+	server, err := gorpc.NewServer(-1)
+	if err != nil {
+		t.Fatal("got server error: " + err.Error())
+	}
+
 	gorpc.Register(server, testHandler)
 
 	go func() {
@@ -30,14 +34,17 @@ func TestServerClient(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	client := gorpc.NewClient[request, response]("http://127.0.0.1:" + strconv.Itoa(server.Port()))
+	client, err := gorpc.NewClient[request, response]("http://127.0.0.1:" + strconv.Itoa(server.Port()))
+	if err != nil {
+		t.Fatal("got client error: " + err.Error())
+	}
 
 	t.Run("error", func(t *testing.T) {
 		t.Parallel()
 
 		resp, err := client.Do(t.Context(), &request{})
 		if err == nil {
-			t.Fatalf("expected error")
+			t.Fatal("expected error")
 		}
 
 		if !strings.Contains(err.Error(), "404 Not Found") {
@@ -45,7 +52,7 @@ func TestServerClient(t *testing.T) {
 		}
 
 		if resp != nil {
-			t.Errorf("response should be nil")
+			t.Error("response should be nil")
 		}
 	})
 	t.Run("success", func(t *testing.T) {
@@ -60,7 +67,7 @@ func TestServerClient(t *testing.T) {
 		}
 
 		if resp == nil {
-			t.Fatalf("response should not be nil")
+			t.Fatal("response should not be nil")
 		}
 
 		if *resp != successResponse {

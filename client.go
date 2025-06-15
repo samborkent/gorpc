@@ -17,17 +17,17 @@ type Client[Request, Response any] struct {
 	client     *http.Client
 	addr, hash string
 	// TODO: use sync.Map?
-	cache map[uint64]weak.Pointer[Response]
-	cacheLock *sync.RWMutex
-	seed maphash.Seed
+	cache                   map[uint64]weak.Pointer[Response]
+	cacheLock               *sync.RWMutex
+	seed                    maphash.Seed
 	cacheResponse, validate bool
 }
 
-func NewClient[Request, Response any](addr string, options ...ClientOption) *Client[Request, Response] {
+func NewClient[Request, Response any](addr string, options ...ClientOption) (*Client[Request, Response], error) {
 	cfg := clientConfig{}
 	for _, option := range options {
 		if err := option(&cfg); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -39,21 +39,21 @@ func NewClient[Request, Response any](addr string, options ...ClientOption) *Cli
 		client = cfg.client
 	} else {
 		client = &http.Client{
-			// TODO: fix this, this should be a *http.Transport
-			Transport: &httpDefaultTransport,
+			Transport: httpDefaultTransport,
 		}
 	}
 
 	return &Client[Request, Response]{
 		client: client,
-		addr: strings.TrimRight(addr, "/") + "/" + hash,
-		hash: hash,
-		cache: m,
-		cacheLock: new(sync.RWMutex),
-		seed: maphash.MakeSeed(),
+		addr:   strings.TrimRight(addr, "/") + "/" + hash,
+		hash:   hash,
+		// TODO: determine appropriate initial size.
+		cache:         make(map[uint64]weak.Pointer[Response], 1),
+		cacheLock:     new(sync.RWMutex),
+		seed:          maphash.MakeSeed(),
 		cacheResponse: cfg.cacheResponse,
-		validate: cfg.validate,
-	}
+		validate:      cfg.validate,
+	}, nil
 }
 
 func (c *Client[Request, Response]) Do(ctx context.Context, req *Request) (*Response, error) {
@@ -79,15 +79,15 @@ func (c *Client[Request, Response]) do(ctx context.Context, req *Request) (*Resp
 
 	if c.cacheResponse {
 		payloadHash = maphash.Bytes(c.seed, data)
-	
+
 		// TODO: get rid of lock
 		c.cacheLock.RLock()
 		res, ok := c.cache[payloadHash]
 		c.cacheLock.RUnlock()
 
-		if ok && res.Value != nil {
+		if ok && res.Value() != nil {
 			// TODO: resolve race-condition
-			return res.Value, nil
+			return res.Value(), nil
 		}
 	}
 
@@ -96,7 +96,7 @@ func (c *Client[Request, Response]) do(ctx context.Context, req *Request) (*Resp
 		return nil, fmt.Errorf("initializing request: %w", err)
 	}
 
-	httpReq.Header.Add(HeaderAccept, MIMEType)	
+	httpReq.Header.Add(HeaderAccept, MIMEType)
 	httpReq.Header.Add(HeaderContentType, MIMEType)
 	httpReq.Header.Add(HeaderMethodHash, c.hash)
 	httpReq.ContentLength = int64(len(data))
@@ -117,8 +117,8 @@ func (c *Client[Request, Response]) do(ctx context.Context, req *Request) (*Resp
 	}
 
 	if c.cacheResponse && payloadHash != 0 {
-		weakRef := weak.Make(res)
-	
+		weakRef := weak.Make(&res)
+
 		c.cacheLock.Lock()
 		c.cache[payloadHash] = weakRef
 		c.cacheLock.Unlock()

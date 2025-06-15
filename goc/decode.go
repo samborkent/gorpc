@@ -71,7 +71,12 @@ func decodeBinaryUnmarshaler[T any](r io.Reader, decoder encoding.BinaryUnmarsha
 }
 
 func decodeValueDecodeReader(r io.Reader, v reflect.Value) error {
-	if err := reflect.TypeAssert[DecodeReader](v).DecodeFrom(r); err != nil {
+	decodeReader, ok := reflect.TypeAssert[DecodeReader](v)
+	if !ok {
+		return ErrTypeAssertion
+	}
+
+	if err := decodeReader.DecodeFrom(r); err != nil {
 		return fmt.Errorf("DecodeFrom: %w", err)
 	}
 
@@ -84,7 +89,12 @@ func decodeValueDecoder(r io.Reader, v reflect.Value) error {
 		return fmt.Errorf("ReadAll: %w", err)
 	}
 
-	if err := reflect.TypeAssert[Decoder](v).Decode(b); err != nil {
+	decoder, ok := reflect.TypeAssert[Decoder](v)
+	if !ok {
+		return ErrTypeAssertion
+	}
+
+	if err := decoder.Decode(b); err != nil {
 		return fmt.Errorf("Decode: %w", err)
 	}
 
@@ -97,7 +107,12 @@ func decodeValueBinaryUnmarshaler(r io.Reader, v reflect.Value) error {
 		return fmt.Errorf("ReadAll: %w", err)
 	}
 
-	if err := reflect.TypeAssert[encoding.BinaryUnmarshaler](v).UnmarshalBinary(b); err != nil {
+	binaryUnmarshaler, ok := reflect.TypeAssert[encoding.BinaryUnmarshaler](v)
+	if !ok {
+		return ErrTypeAssertion
+	}
+
+	if err := binaryUnmarshaler.UnmarshalBinary(b); err != nil {
 		return fmt.Errorf("UnmarshalBinary: %w", err)
 	}
 
