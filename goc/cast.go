@@ -1,11 +1,12 @@
 package goc
 
-import "unsafe"
+func castGeneric[B, A any](a A) (B, error) {
+	var zero B
 
-func unsafeCast[B, A any](a A) B {
-	return *(*B)(unsafe.Pointer(&a))
-}
+	b, ok := any(a).(B)
+	if !ok {
+		return zero, ErrTypeAssertion
+	}
 
-func unsafeSliceCast[B, A any](a []A) B {
-	return *(*B)(unsafe.Pointer(unsafe.SliceData(a)))
+	return b, nil
 }

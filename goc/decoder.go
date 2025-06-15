@@ -7,9 +7,6 @@ import (
 	"fmt"
 	"io"
 	"reflect"
-	"unsafe"
-
-	"github.com/samborkent/gorpc/internal/convert"
 )
 
 type DecodeReader interface {
@@ -58,12 +55,13 @@ func DecodeFrom[T any](r io.Reader) (T, error) {
 
 		return val, nil
 	case reflect.String:
-		str, err := io.ReadAll(r)
+		strBytes, err := io.ReadAll(r)
 		if err != nil {
 			return *new(T), fmt.Errorf("reading encoded string: %w", err)
 		}
 
-		return unsafeCast[T](convert.BytesToString(str)), nil
+		// TODO: avoid allocation
+		return castGeneric[T](string(strBytes))
 	}
 
 	val := new(T)
@@ -132,7 +130,7 @@ func decodeValue(r io.Reader, v reflect.Value) error {
 
 	switch v.Kind() {
 	case reflect.Bool:
-		v.SetBool(unsafeSliceCast[bool](d))
+		v.SetBool(decodeBool(d[0]))
 		return nil
 	case reflect.Int:
 		// TODO: test
@@ -152,7 +150,7 @@ func decodeValue(r io.Reader, v reflect.Value) error {
 				return fmt.Errorf("reading %s: %w", t.String(), err)
 			}
 
-			v.SetInt(int64(unsafeSliceCast[int32](d)))
+			v.SetInt(int64(decodeInt32(d)))
 			return nil
 		case 8:
 			d = make([]byte, 8)
@@ -162,22 +160,22 @@ func decodeValue(r io.Reader, v reflect.Value) error {
 				return fmt.Errorf("reading %s: %w", t.String(), err)
 			}
 
-			v.SetInt(unsafeSliceCast[int64](d))
+			v.SetInt(decodeInt64(d))
 			return nil
 		default:
 			return fmt.Errorf("unknown int size %d encountered", header[0])
 		}
 	case reflect.Int8:
-		v.SetInt(int64(unsafeSliceCast[int8](d)))
+		v.SetInt(int64(int8(d[0])))
 		return nil
 	case reflect.Int16:
-		v.SetInt(int64(unsafeSliceCast[int16](d)))
+		v.SetInt(int64(decodeInt16(d)))
 		return nil
 	case reflect.Int32:
-		v.SetInt(int64(unsafeSliceCast[int32](d)))
+		v.SetInt(int64(decodeInt32(d)))
 		return nil
 	case reflect.Int64:
-		v.SetInt(unsafeSliceCast[int64](d))
+		v.SetInt(decodeInt64(d))
 		return nil
 	case reflect.Uint, reflect.Uintptr:
 		// TODO: test
@@ -197,7 +195,7 @@ func decodeValue(r io.Reader, v reflect.Value) error {
 				return fmt.Errorf("reading %s: %w", t.String(), err)
 			}
 
-			v.SetUint(uint64(unsafeSliceCast[uint32](d)))
+			v.SetUint(uint64(decodeUint32(d)))
 			return nil
 		case 8:
 			d = make([]byte, 8)
@@ -207,34 +205,34 @@ func decodeValue(r io.Reader, v reflect.Value) error {
 				return fmt.Errorf("reading %s: %w", t.String(), err)
 			}
 
-			v.SetUint(unsafeSliceCast[uint64](d))
+			v.SetUint(decodeUint64(d))
 			return nil
 		default:
 			return fmt.Errorf("unknown %s size %d encountered", t.Kind(), header[0])
 		}
 	case reflect.Uint8:
-		v.SetUint(uint64(unsafeSliceCast[uint8](d)))
+		v.SetUint(uint64(d[0]))
 		return nil
 	case reflect.Uint16:
-		v.SetUint(uint64(unsafeSliceCast[uint16](d)))
+		v.SetUint(uint64(decodeUint16(d)))
 		return nil
 	case reflect.Uint32:
-		v.SetUint(uint64(unsafeSliceCast[uint32](d)))
+		v.SetUint(uint64(decodeUint32(d)))
 		return nil
 	case reflect.Uint64:
-		v.SetUint(unsafeSliceCast[uint64](d))
+		v.SetUint(decodeUint64(d))
 		return nil
 	case reflect.Float32:
-		v.SetFloat(float64(unsafeSliceCast[float32](d)))
+		v.SetFloat(float64(decodeFloat32(d)))
 		return nil
 	case reflect.Float64:
-		v.SetFloat(unsafeSliceCast[float64](d))
+		v.SetFloat(decodeFloat64(d))
 		return nil
 	case reflect.Complex64:
-		v.SetComplex(complex128(unsafeSliceCast[complex64](d)))
+		v.SetComplex(complex128(decodeComplex64(d)))
 		return nil
 	case reflect.Complex128:
-		v.SetComplex(unsafeSliceCast[complex128](d))
+		v.SetComplex(decodeComplex128(d))
 		return nil
 	case reflect.String:
 		length, err := decodeConcrete[uint32](r)
@@ -255,7 +253,8 @@ func decodeValue(r io.Reader, v reflect.Value) error {
 			return fmt.Errorf("reading encoded string: %w", err)
 		}
 
-		v.SetString(convert.BytesToString(d))
+		// TODO: avoid allocation?
+		v.SetString(string(d))
 		return nil
 	case reflect.Struct:
 		for i := range v.NumField() {
@@ -287,29 +286,6 @@ func decodeValue(r io.Reader, v reflect.Value) error {
 		// Indirect the underlying slice type.
 		for range indirections {
 			elemType = elemType.Elem()
-		}
-
-		// Decode slice of fixed-size types.
-		if v.Kind() == reflect.Slice {
-			switch elemType.Kind() {
-			case reflect.Bool,
-				reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-				reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
-				reflect.Float32, reflect.Float64,
-				reflect.Complex64, reflect.Complex128:
-				// TODO: sync.Pool
-				d := make([]byte, length*int(elemType.Size()))
-
-				n, err := r.Read(d)
-				if n == 0 && err != nil && !errors.Is(err, io.EOF) {
-					return fmt.Errorf("reading []%s: %w", elemType.String(), err)
-				}
-
-				v.Set(reflect.SliceAt(elemType, unsafe.Pointer(&d[0]), length))
-				return nil
-			}
-
-			v.Set(reflect.MakeSlice(v.Type(), length, length))
 		}
 
 		// Decode slice with underlying type of variable size.

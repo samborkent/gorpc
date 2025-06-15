@@ -7,8 +7,6 @@ import (
 	"io"
 	"math"
 	"reflect"
-
-	"github.com/samborkent/gorpc/internal/convert"
 )
 
 type EncodeWriter interface {
@@ -75,7 +73,8 @@ func EncodeTo[T any](w io.Writer, val T) error {
 
 		return nil
 	case reflect.String:
-		_, err := w.Write(convert.StringToBytes(unsafeCast[string](val)))
+		// TODO: get rid of allocations
+		_, err := w.Write([]byte(reflect.ValueOf(val).String()))
 		if err != nil {
 			return fmt.Errorf("encoding string: %w", err)
 		}
@@ -323,149 +322,150 @@ func encodeValue(w io.Writer, v reflect.Value) error {
 			elemType = elemType.Elem()
 		}
 
-		// Encode slice of fixed-size types.
-		if v.Kind() == reflect.Slice {
-			switch elemType.Kind() {
-			case reflect.Bool:
-				boolSlice, ok := reflect.TypeAssert[[]bool](v)
-				if !ok {
-					return ErrTypeAssertion
-				}
+		// TODO: maybe re-enable if possible without unsafe use
+		// // Encode slice of fixed-size types.
+		// if v.Kind() == reflect.Slice {
+		// 	switch elemType.Kind() {
+		// 	case reflect.Bool:
+		// 		boolSlice, ok := reflect.TypeAssert[[]bool](v)
+		// 		if !ok {
+		// 			return ErrTypeAssertion
+		// 		}
 
-				if err := encodeConcreteSlice(w, boolSlice); err != nil {
-					return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
-				}
+		// 		if err := encodeConcreteSlice(w, boolSlice); err != nil {
+		// 			return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
+		// 		}
 
-				return nil
-			case reflect.Int8:
-				int8Slice, ok := reflect.TypeAssert[[]int8](v)
-				if !ok {
-					return ErrTypeAssertion
-				}
+		// 		return nil
+		// 	case reflect.Int8:
+		// 		int8Slice, ok := reflect.TypeAssert[[]int8](v)
+		// 		if !ok {
+		// 			return ErrTypeAssertion
+		// 		}
 
-				if err := encodeConcreteSlice(w, int8Slice); err != nil {
-					return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
-				}
+		// 		if err := encodeConcreteSlice(w, int8Slice); err != nil {
+		// 			return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
+		// 		}
 
-				return nil
-			case reflect.Int16:
-				int16Slice, ok := reflect.TypeAssert[[]int16](v)
-				if !ok {
-					return ErrTypeAssertion
-				}
+		// 		return nil
+		// 	case reflect.Int16:
+		// 		int16Slice, ok := reflect.TypeAssert[[]int16](v)
+		// 		if !ok {
+		// 			return ErrTypeAssertion
+		// 		}
 
-				if err := encodeConcreteSlice(w, int16Slice); err != nil {
-					return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
-				}
+		// 		if err := encodeConcreteSlice(w, int16Slice); err != nil {
+		// 			return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
+		// 		}
 
-				return nil
-			case reflect.Int32:
-				int32Slice, ok := reflect.TypeAssert[[]int32](v)
-				if !ok {
-					return ErrTypeAssertion
-				}
+		// 		return nil
+		// 	case reflect.Int32:
+		// 		int32Slice, ok := reflect.TypeAssert[[]int32](v)
+		// 		if !ok {
+		// 			return ErrTypeAssertion
+		// 		}
 
-				if err := encodeConcreteSlice(w, int32Slice); err != nil {
-					return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
-				}
+		// 		if err := encodeConcreteSlice(w, int32Slice); err != nil {
+		// 			return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
+		// 		}
 
-				return nil
-			case reflect.Int64:
-				int64Slice, ok := reflect.TypeAssert[[]int64](v)
-				if !ok {
-					return ErrTypeAssertion
-				}
+		// 		return nil
+		// 	case reflect.Int64:
+		// 		int64Slice, ok := reflect.TypeAssert[[]int64](v)
+		// 		if !ok {
+		// 			return ErrTypeAssertion
+		// 		}
 
-				if err := encodeConcreteSlice(w, int64Slice); err != nil {
-					return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
-				}
+		// 		if err := encodeConcreteSlice(w, int64Slice); err != nil {
+		// 			return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
+		// 		}
 
-				return nil
-			case reflect.Uint8:
-				if _, err := w.Write(v.Bytes()); err != nil {
-					return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
-				}
+		// 		return nil
+		// 	case reflect.Uint8:
+		// 		if _, err := w.Write(v.Bytes()); err != nil {
+		// 			return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
+		// 		}
 
-				return nil
-			case reflect.Uint16:
-				uint16Slice, ok := reflect.TypeAssert[[]uint16](v)
-				if !ok {
-					return ErrTypeAssertion
-				}
+		// 		return nil
+		// 	case reflect.Uint16:
+		// 		uint16Slice, ok := reflect.TypeAssert[[]uint16](v)
+		// 		if !ok {
+		// 			return ErrTypeAssertion
+		// 		}
 
-				if err := encodeConcreteSlice(w, uint16Slice); err != nil {
-					return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
-				}
+		// 		if err := encodeConcreteSlice(w, uint16Slice); err != nil {
+		// 			return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
+		// 		}
 
-				return nil
-			case reflect.Uint32:
-				uint32Slice, ok := reflect.TypeAssert[[]uint32](v)
-				if !ok {
-					return ErrTypeAssertion
-				}
+		// 		return nil
+		// 	case reflect.Uint32:
+		// 		uint32Slice, ok := reflect.TypeAssert[[]uint32](v)
+		// 		if !ok {
+		// 			return ErrTypeAssertion
+		// 		}
 
-				if err := encodeConcreteSlice(w, uint32Slice); err != nil {
-					return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
-				}
+		// 		if err := encodeConcreteSlice(w, uint32Slice); err != nil {
+		// 			return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
+		// 		}
 
-				return nil
-			case reflect.Uint64:
-				uint64Slice, ok := reflect.TypeAssert[[]uint64](v)
-				if !ok {
-					return ErrTypeAssertion
-				}
+		// 		return nil
+		// 	case reflect.Uint64:
+		// 		uint64Slice, ok := reflect.TypeAssert[[]uint64](v)
+		// 		if !ok {
+		// 			return ErrTypeAssertion
+		// 		}
 
-				if err := encodeConcreteSlice(w, uint64Slice); err != nil {
-					return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
-				}
+		// 		if err := encodeConcreteSlice(w, uint64Slice); err != nil {
+		// 			return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
+		// 		}
 
-				return nil
-			case reflect.Float32:
-				float32Slice, ok := reflect.TypeAssert[[]float32](v)
-				if !ok {
-					return ErrTypeAssertion
-				}
+		// 		return nil
+		// 	case reflect.Float32:
+		// 		float32Slice, ok := reflect.TypeAssert[[]float32](v)
+		// 		if !ok {
+		// 			return ErrTypeAssertion
+		// 		}
 
-				if err := encodeConcreteSlice(w, float32Slice); err != nil {
-					return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
-				}
+		// 		if err := encodeConcreteSlice(w, float32Slice); err != nil {
+		// 			return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
+		// 		}
 
-				return nil
-			case reflect.Float64:
-				float64Slice, ok := reflect.TypeAssert[[]float64](v)
-				if !ok {
-					return ErrTypeAssertion
-				}
+		// 		return nil
+		// 	case reflect.Float64:
+		// 		float64Slice, ok := reflect.TypeAssert[[]float64](v)
+		// 		if !ok {
+		// 			return ErrTypeAssertion
+		// 		}
 
-				if err := encodeConcreteSlice(w, float64Slice); err != nil {
-					return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
-				}
+		// 		if err := encodeConcreteSlice(w, float64Slice); err != nil {
+		// 			return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
+		// 		}
 
-				return nil
-			case reflect.Complex64:
-				complex64Slice, ok := reflect.TypeAssert[[]complex64](v)
-				if !ok {
-					return ErrTypeAssertion
-				}
+		// 		return nil
+		// 	case reflect.Complex64:
+		// 		complex64Slice, ok := reflect.TypeAssert[[]complex64](v)
+		// 		if !ok {
+		// 			return ErrTypeAssertion
+		// 		}
 
-				if err := encodeConcreteSlice(w, complex64Slice); err != nil {
-					return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
-				}
+		// 		if err := encodeConcreteSlice(w, complex64Slice); err != nil {
+		// 			return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
+		// 		}
 
-				return nil
-			case reflect.Complex128:
-				complex128Slice, ok := reflect.TypeAssert[[]complex128](v)
-				if !ok {
-					return ErrTypeAssertion
-				}
+		// 		return nil
+		// 	case reflect.Complex128:
+		// 		complex128Slice, ok := reflect.TypeAssert[[]complex128](v)
+		// 		if !ok {
+		// 			return ErrTypeAssertion
+		// 		}
 
-				if err := encodeConcreteSlice(w, complex128Slice); err != nil {
-					return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
-				}
+		// 		if err := encodeConcreteSlice(w, complex128Slice); err != nil {
+		// 			return fmt.Errorf("encoding []%s: %w", elemType.String(), err)
+		// 		}
 
-				return nil
-			}
-		}
+		// 		return nil
+		// 	}
+		// }
 
 		// Encode slice with underlying type of variable size.
 		for i := range v.Len() {
