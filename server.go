@@ -34,15 +34,25 @@ func NewServer(port int, options ...ServerOption) *Server {
 
 	cfg := serverConfig{}
 	for _, option := range options {
-		option(&cfg)
+		if err := option(&cfg); err != nil {
+			return err
+		}
+	}
+
+	var server *http.Server
+
+	if cfg.withHTTPServer {
+		server = cfg.server
+	} else {
+		server = &http.Server{
+			Addr:      ":" + strconv.Itoa(port),
+			Protocols: httpProtocols,
+		}
 	}
 
 	return &Server{
 		mux: http.NewServeMux(),
-		server: &http.Server{
-			Addr:      ":" + strconv.Itoa(port),
-			Protocols: httpProtocols,
-		},
+		server: server,
 		port: port,
 		validate: cfg.validate,
 	}

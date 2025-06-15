@@ -23,6 +23,7 @@ func (h HandlerFunc[Request, Response]) Hash() string {
 const (
 	httpErrInvalidMethod      = "Invalid HTTP method"
 	httpErrInvalidContentType = "Invalid Content-Type header value"
+	httpErrInvalidAcceptHeader = "Accept header does not allow goc encoding"
 	httpErrMissingMethodHash  = "Missing X-Method-Hash header"
 	httpErrInvalidMethodHash  = "Invalid X-Method-Hash header value"
 	httpErrRequest            = "Error decoding request"
@@ -45,18 +46,22 @@ func handler[Request, Response any](h HandlerFunc[Request, Response], cacheRespo
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		defer func() { _ = r.Body.Close() }()
-
 		// Only POST requests are supported.
 		if r.Method != http.MethodPost {
-			http.Error(w, httpErrInvalidMethod, http.StatusBadRequest)
+			http.Error(w, httpErrInvalidMethod, http.StatusMethodNotAcceptable)
 			return
 		}
 
 		// Only requests with MIME type application/goc are supported.
-		mimeType := r.Header.Get(HeaderContentType)
-		if mimeType != MIMEType {
-			http.Error(w, httpErrInvalidContentType, http.StatusBadRequest)
+		contentType := r.Header.Get(HeaderContentType)
+		if contentType != MIMEType {
+			http.Error(w, httpErrInvalidContentType, http.StatusUnsupportedMediaType)
+			return
+		}
+
+		acceptType := r.Header.Get(HeaderAccept)
+		if acceptType != MIMEType {
+			http.Error(w, httpErrInvalidAcceptHeader, http.StatusUnacceptable)
 			return
 		}
 
@@ -68,7 +73,7 @@ func handler[Request, Response any](h HandlerFunc[Request, Response], cacheRespo
 
 		// Check that the request belongs to this handler.
 		if unique.Make(header) != hshHandle {
-			http.Error(w, httpErrInvalidMethodHash, http.StatusBadRequest)
+			http.Error(w, httpErrInvalidMethodHash, http.StatusForbidden)
 			return
 		}
 
@@ -80,7 +85,8 @@ func handler[Request, Response any](h HandlerFunc[Request, Response], cacheRespo
 		// Decode request.
 		if cacheResponse {
 			// TODO: read until content length
-			body, err := io.ReadAll(req.Body)
+			body, err := io.ReadAll(r.Body)
+			_ = r.Body.Close()
 			if err != nil {
 				// TODO: revise error
 				http.Error(w, httpErrRequest, http.StatusBadRequest)
@@ -105,6 +111,7 @@ func handler[Request, Response any](h HandlerFunc[Request, Response], cacheRespo
 			}
 		} else {
 			req, err = goc.DecodeFrom[Request](r.Body)
+			_ = r.Body.Close()
 			if err != nil {
 				http.Error(w, httpErrRequest, http.StatusBadRequest)
 				return
@@ -127,6 +134,7 @@ func handler[Request, Response any](h HandlerFunc[Request, Response], cacheRespo
 		}
 
 		w.Header().Set(HeaderContentType, MIMEType)
+		w.Header().Set(HeaderXContentTypeOptions, nosniff)
 		w.Header().Set(HeaderMethodHash, hsh)
 
 		// Encode and return response.
@@ -142,6 +150,9 @@ func handler[Request, Response any](h HandlerFunc[Request, Response], cacheRespo
 			cache[payloadHash] = weak.Make(&res)
 			cacheLock.Unlock()
 		} else {
+			// TODO: define constants
+			w.Header().Set("Cache-Control", "no-store")
+		
 			if err := goc.EncodeTo(w, res); err != nil {
 				http.Error(w, httpErrResponse, http.StatusInternalServerError)
 				return

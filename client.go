@@ -26,16 +26,26 @@ type Client[Request, Response any] struct {
 func NewClient[Request, Response any](addr string, options ...ClientOption) *Client[Request, Response] {
 	cfg := clientConfig{}
 	for _, option := range options {
-		option(&cfg)
+		if err := option(&cfg); err != nil {
+			return err
+		}
 	}
 
 	hash := hashMethod[Request, Response]()
 
-	return &Client[Request, Response]{
-		client: &http.Client{
+	var client *http.Client
+
+	if cfg.withHTTPClient {
+		client = cfg.client
+	} else {
+		client = &http.Client{
 			// TODO: fix this, this should be a *http.Transport
 			Transport: &httpDefaultTransport,
-		},
+		}
+	}
+
+	return &Client[Request, Response]{
+		client: client,
 		addr: strings.TrimRight(addr, "/") + "/" + hash,
 		hash: hash,
 		cache: m,
@@ -86,6 +96,7 @@ func (c *Client[Request, Response]) do(ctx context.Context, req *Request) (*Resp
 		return nil, fmt.Errorf("initializing request: %w", err)
 	}
 
+	httpReq.Header.Add(HeaderAccept, MIMEType)	
 	httpReq.Header.Add(HeaderContentType, MIMEType)
 	httpReq.Header.Add(HeaderMethodHash, c.hash)
 	httpReq.ContentLength = int64(len(data))
@@ -95,13 +106,12 @@ func (c *Client[Request, Response]) do(ctx context.Context, req *Request) (*Resp
 		return nil, fmt.Errorf("sending request: %w", err)
 	}
 
-	defer func() { _ = httpRes.Body.Close() }()
-
 	if httpRes.StatusCode >= http.StatusBadRequest {
 		return nil, fmt.Errorf("http error: %s", httpRes.Status)
 	}
 
 	res, err := goc.DecodeFrom[Response](httpRes.Body)
+	_ = httpRes.Body.Close()
 	if err != nil {
 		return nil, fmt.Errorf("decoding response: %w", err)
 	}
