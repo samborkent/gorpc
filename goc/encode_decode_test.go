@@ -48,335 +48,335 @@ func TestEncodeDecode(t *testing.T) {
 
 		encodeDecodeComparable(t, want)
 	})
-	// t.Run("int8", func(t *testing.T) {
-	// 	t.Parallel()
+	t.Run("int8", func(t *testing.T) {
+		t.Parallel()
 
-	// 	want := int8(rand.IntN(math.MaxUint8) - math.MaxInt8)
+		want := int8(rand.IntN(math.MaxUint8) - math.MaxInt8)
 
-	// 	encodeDecodeComparable(t, want)
-	// })
-	// t.Run("int16", func(t *testing.T) {
-	// 	t.Parallel()
+		encodeDecodeComparable(t, want)
+	})
+	t.Run("int16", func(t *testing.T) {
+		t.Parallel()
 
-	// 	want := int16(rand.IntN(math.MaxUint16) - math.MaxInt16)
+		want := int16(rand.IntN(math.MaxUint16) - math.MaxInt16)
 
-	// 	encodeDecodeComparable(t, want)
-	// })
-	// t.Run("int32", func(t *testing.T) {
-	// 	t.Parallel()
+		encodeDecodeComparable(t, want)
+	})
+	t.Run("int32", func(t *testing.T) {
+		t.Parallel()
 
-	// 	want := rand.Int32() - math.MaxInt32/2
+		want := rand.Int32() - math.MaxInt32/2
 
-	// 	encodeDecodeComparable(t, want)
-	// })
-	// t.Run("int64", func(t *testing.T) {
-	// 	t.Parallel()
+		encodeDecodeComparable(t, want)
+	})
+	t.Run("int64", func(t *testing.T) {
+		t.Parallel()
 
-	// 	want := rand.Int64() - math.MaxInt64/2
+		want := rand.Int64() - math.MaxInt64/2
 
-	// 	encodeDecodeComparable(t, want)
-	// })
-	// t.Run("uint", func(t *testing.T) {
-	// 	t.Parallel()
+		encodeDecodeComparable(t, want)
+	})
+	t.Run("uint", func(t *testing.T) {
+		t.Parallel()
 
-	// 	want := rand.Uint()
+		want := rand.Uint()
 
-	// 	encodeDecodeComparable(t, want)
-	// })
-	// t.Run("uintptr", func(t *testing.T) {
-	// 	t.Parallel()
+		encodeDecodeComparable(t, want)
+	})
+	t.Run("uintptr", func(t *testing.T) {
+		t.Parallel()
 
-	// 	want := uintptr(rand.Uint())
+		want := uintptr(rand.Uint())
 
-	// 	encodeDecodeComparable(t, want)
-	// })
-	// t.Run("uint8", func(t *testing.T) {
-	// 	t.Parallel()
+		encodeDecodeComparable(t, want)
+	})
+	t.Run("uint8", func(t *testing.T) {
+		t.Parallel()
 
-	// 	want := uint8(rand.IntN(math.MaxUint8))
+		want := uint8(rand.IntN(math.MaxUint8))
 
-	// 	encodeDecodeComparable(t, want)
-	// })
-	// t.Run("uint16", func(t *testing.T) {
-	// 	t.Parallel()
+		encodeDecodeComparable(t, want)
+	})
+	t.Run("uint16", func(t *testing.T) {
+		t.Parallel()
 
-	// 	want := uint16(rand.IntN(math.MaxUint16))
+		want := uint16(rand.IntN(math.MaxUint16))
 
-	// 	encodeDecodeComparable(t, want)
-	// })
-	// t.Run("uint32", func(t *testing.T) {
-	// 	t.Parallel()
+		encodeDecodeComparable(t, want)
+	})
+	t.Run("uint32", func(t *testing.T) {
+		t.Parallel()
 
-	// 	want := rand.Uint32()
+		want := rand.Uint32()
 
-	// 	encodeDecodeComparable(t, want)
-	// })
-	// t.Run("uint64", func(t *testing.T) {
-	// 	t.Parallel()
+		encodeDecodeComparable(t, want)
+	})
+	t.Run("uint64", func(t *testing.T) {
+		t.Parallel()
 
-	// 	want := rand.Uint64()
+		want := rand.Uint64()
 
-	// 	encodeDecodeComparable(t, want)
-	// })
-	// t.Run("float32", func(t *testing.T) {
-	// 	t.Parallel()
+		encodeDecodeComparable(t, want)
+	})
+	t.Run("float32", func(t *testing.T) {
+		t.Parallel()
 
-	// 	want := 2*rand.Float32() - 1
+		want := 2*rand.Float32() - 1
 
-	// 	encodeDecodeComparable(t, want)
-	// })
-	// t.Run("float64", func(t *testing.T) {
-	// 	t.Parallel()
+		encodeDecodeComparable(t, want)
+	})
+	t.Run("float64", func(t *testing.T) {
+		t.Parallel()
 
-	// 	want := 2*rand.Float64() - 1
+		want := 2*rand.Float64() - 1
 
-	// 	encodeDecodeComparable(t, want)
-	// })
-	// t.Run("complex64", func(t *testing.T) {
-	// 	t.Parallel()
+		encodeDecodeComparable(t, want)
+	})
+	t.Run("complex64", func(t *testing.T) {
+		t.Parallel()
 
-	// 	want := complex64(complex(2*rand.Float64()-1, 2*rand.Float64()-1))
+		want := complex64(complex(2*rand.Float64()-1, 2*rand.Float64()-1))
 
-	// 	encodeDecodeComparable(t, want)
-	// })
-	// t.Run("complex128", func(t *testing.T) {
-	// 	t.Parallel()
+		encodeDecodeComparable(t, want)
+	})
+	t.Run("complex128", func(t *testing.T) {
+		t.Parallel()
 
-	// 	want := complex(2*rand.Float64()-1, 2*rand.Float64()-1)
+		want := complex(2*rand.Float64()-1, 2*rand.Float64()-1)
 
-	// 	encodeDecodeComparable(t, want)
-	// })
-	// t.Run("array", func(t *testing.T) {
-	// 	t.Parallel()
+		encodeDecodeComparable(t, want)
+	})
+	t.Run("array", func(t *testing.T) {
+		t.Parallel()
 
-	// 	want := [4]string{cryptorand.Text(), cryptorand.Text(), cryptorand.Text(), cryptorand.Text()}
-
-	// 	encodeDecodeComparable(t, want)
-	// })
-	// t.Run("string", func(t *testing.T) {
-	// 	t.Parallel()
-
-	// 	want := cryptorand.Text()
-
-	// 	encodeDecodeComparable(t, want)
-	// })
-	// t.Run("struct", func(t *testing.T) {
-	// 	t.Parallel()
-
-	// 	want := makeComparableStruct(t)
-
-	// 	encodeDecodeComparable(t, want)
-	// })
-	// t.Run("slice", func(t *testing.T) {
-	// 	t.Parallel()
-
-	// 	t.Run("bool", func(t *testing.T) {
-	// 		t.Parallel()
-
-	// 		want := make([]bool, rand.IntN(math.MaxInt8))
-	// 		for i := range want {
-	// 			if i%(1+rand.IntN(7)) == 0 {
-	// 				want[i] = true
-	// 			}
-	// 		}
-
-	// 		encodeDecodeComparableSlice(t, want)
-	// 	})
-	// 	t.Run("int", func(t *testing.T) {
-	// 		t.Parallel()
-
-	// 		want := make([]int, rand.IntN(math.MaxInt8))
-	// 		for i := range want {
-	// 			want[i] = rand.Int()
-	// 		}
-
-	// 		encodeDecodeComparableSlice(t, want)
-	// 	})
-	// 	t.Run("int8", func(t *testing.T) {
-	// 		t.Parallel()
-
-	// 		want := make([]int8, rand.IntN(math.MaxInt8))
-	// 		for i := range want {
-	// 			want[i] = int8(rand.IntN(math.MaxUint8) - math.MaxInt8)
-	// 		}
-
-	// 		encodeDecodeComparableSlice(t, want)
-	// 	})
-	// 	t.Run("int16", func(t *testing.T) {
-	// 		t.Parallel()
-
-	// 		want := make([]int16, rand.IntN(math.MaxInt8))
-	// 		for i := range want {
-	// 			want[i] = int16(rand.IntN(math.MaxUint16) - math.MaxInt16)
-	// 		}
-
-	// 		encodeDecodeComparableSlice(t, want)
-	// 	})
-	// 	t.Run("int32", func(t *testing.T) {
-	// 		t.Parallel()
-
-	// 		want := make([]int32, rand.IntN(math.MaxInt8))
-	// 		for i := range want {
-	// 			want[i] = rand.Int32() - math.MaxInt32/2
-	// 		}
-
-	// 		encodeDecodeComparableSlice(t, want)
-	// 	})
-	// 	t.Run("int64", func(t *testing.T) {
-	// 		t.Parallel()
-
-	// 		want := make([]int64, rand.IntN(math.MaxInt8))
-	// 		for i := range want {
-	// 			want[i] = rand.Int64() - math.MaxInt64/2
-	// 		}
-
-	// 		encodeDecodeComparableSlice(t, want)
-	// 	})
-	// 	t.Run("uint", func(t *testing.T) {
-	// 		t.Parallel()
-
-	// 		want := make([]uint, rand.IntN(math.MaxInt8))
-	// 		for i := range want {
-	// 			want[i] = rand.Uint()
-	// 		}
-
-	// 		encodeDecodeComparableSlice(t, want)
-	// 	})
-	// 	t.Run("uint8", func(t *testing.T) {
-	// 		t.Parallel()
-
-	// 		want := make([]uint8, rand.IntN(math.MaxInt8))
-	// 		for i := range want {
-	// 			want[i] = uint8(rand.IntN(math.MaxUint8))
-	// 		}
-
-	// 		encodeDecodeComparableSlice(t, want)
-	// 	})
-	// 	t.Run("uint16", func(t *testing.T) {
-	// 		t.Parallel()
-
-	// 		want := make([]uint16, rand.IntN(math.MaxInt8))
-	// 		for i := range want {
-	// 			want[i] = uint16(rand.IntN(math.MaxUint16))
-	// 		}
-
-	// 		encodeDecodeComparableSlice(t, want)
-	// 	})
-	// 	t.Run("uint32", func(t *testing.T) {
-	// 		t.Parallel()
-
-	// 		want := make([]uint32, rand.IntN(math.MaxInt8))
-	// 		for i := range want {
-	// 			want[i] = rand.Uint32()
-	// 		}
-
-	// 		encodeDecodeComparableSlice(t, want)
-	// 	})
-	// 	t.Run("uint64", func(t *testing.T) {
-	// 		t.Parallel()
-
-	// 		want := make([]uint64, rand.IntN(math.MaxInt8))
-	// 		for i := range want {
-	// 			want[i] = rand.Uint64()
-	// 		}
-
-	// 		encodeDecodeComparableSlice(t, want)
-	// 	})
-	// 	t.Run("float32", func(t *testing.T) {
-	// 		t.Parallel()
-
-	// 		want := make([]float32, rand.IntN(math.MaxInt8))
-	// 		for i := range want {
-	// 			want[i] = 2*rand.Float32() - 1
-	// 		}
-
-	// 		encodeDecodeComparableSlice(t, want)
-	// 	})
-	// 	t.Run("float64", func(t *testing.T) {
-	// 		t.Parallel()
-
-	// 		want := make([]float64, rand.IntN(math.MaxInt8))
-	// 		for i := range want {
-	// 			want[i] = 2*rand.Float64() - 1
-	// 		}
-
-	// 		encodeDecodeComparableSlice(t, want)
-	// 	})
-	// 	t.Run("complex64", func(t *testing.T) {
-	// 		t.Parallel()
-
-	// 		want := make([]complex64, rand.IntN(math.MaxInt8))
-	// 		for i := range want {
-	// 			want[i] = complex64(complex(2*rand.Float64()-1, 2*rand.Float64()-1))
-	// 		}
-
-	// 		encodeDecodeComparableSlice(t, want)
-	// 	})
-	// 	t.Run("complex128", func(t *testing.T) {
-	// 		t.Parallel()
-
-	// 		want := make([]complex128, rand.IntN(math.MaxInt8))
-	// 		for i := range want {
-	// 			want[i] = complex(2*rand.Float64()-1, 2*rand.Float64()-1)
-	// 		}
-
-	// 		encodeDecodeComparableSlice(t, want)
-	// 	})
-	// 	t.Run("string", func(t *testing.T) {
-	// 		t.Parallel()
-
-	// 		want := make([]string, rand.IntN(math.MaxInt8))
-	// 		for i := range want {
-	// 			want[i] = cryptorand.Text()
-	// 		}
-
-	// 		encodeDecodeComparableSlice(t, want)
-	// 	})
-	// 	t.Run("struct", func(t *testing.T) {
-	// 		t.Parallel()
-
-	// 		want := make([]ComparableStruct, rand.IntN(math.MaxInt8))
-	// 		for i := range want {
-	// 			want[i] = makeComparableStruct(t)
-	// 		}
-
-	// 		encodeDecodeComparableSlice(t, want)
-	// 	})
-	// })
-	// t.Run("map", func(t *testing.T) {
-	// 	t.Parallel()
-
-	// 	want := make(map[uint64]float32, 10)
-
-	// 	for range 10 {
-	// 		want[rand.Uint64()] = rand.Float32()
-	// 	}
-
-	// 	d, err := Encode(want)
-	// 	if err != nil {
-	// 		t.Fatalf("Encode: %s", err.Error())
-	// 	}
-
-	// 	got, err := Decode[map[uint64]float32](d)
-	// 	if err != nil {
-	// 		t.Fatalf("Decode: %s", err.Error())
-	// 	}
-
-	// 	if len(got) != len(want) {
-	// 		t.Errorf("got len %d, want len %d", len(got), len(want))
-	// 	}
-
-	// 	for k, g := range got {
-	// 		w, ok := want[k]
-	// 		if !ok {
-	// 			t.Errorf("missing key %d", k)
-	// 		}
-
-	// 		if g != w {
-	// 			t.Errorf("key %d: got %+v, want %+v", k, g, w)
-	// 		}
-	// 	}
-	// })
+		want := [4]string{cryptorand.Text(), cryptorand.Text(), cryptorand.Text(), cryptorand.Text()}
+
+		encodeDecodeComparable(t, want)
+	})
+	t.Run("string", func(t *testing.T) {
+		t.Parallel()
+
+		want := cryptorand.Text()
+
+		encodeDecodeComparable(t, want)
+	})
+	t.Run("struct", func(t *testing.T) {
+		t.Parallel()
+
+		want := makeComparableStruct(t)
+
+		encodeDecodeComparable(t, want)
+	})
+	t.Run("slice", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("bool", func(t *testing.T) {
+			t.Parallel()
+
+			want := make([]bool, rand.IntN(math.MaxInt8))
+			for i := range want {
+				if i%(1+rand.IntN(7)) == 0 {
+					want[i] = true
+				}
+			}
+
+			encodeDecodeComparableSlice(t, want)
+		})
+		t.Run("int", func(t *testing.T) {
+			t.Parallel()
+
+			want := make([]int, rand.IntN(math.MaxInt8))
+			for i := range want {
+				want[i] = rand.Int()
+			}
+
+			encodeDecodeComparableSlice(t, want)
+		})
+		t.Run("int8", func(t *testing.T) {
+			t.Parallel()
+
+			want := make([]int8, rand.IntN(math.MaxInt8))
+			for i := range want {
+				want[i] = int8(rand.IntN(math.MaxUint8) - math.MaxInt8)
+			}
+
+			encodeDecodeComparableSlice(t, want)
+		})
+		t.Run("int16", func(t *testing.T) {
+			t.Parallel()
+
+			want := make([]int16, rand.IntN(math.MaxInt8))
+			for i := range want {
+				want[i] = int16(rand.IntN(math.MaxUint16) - math.MaxInt16)
+			}
+
+			encodeDecodeComparableSlice(t, want)
+		})
+		t.Run("int32", func(t *testing.T) {
+			t.Parallel()
+
+			want := make([]int32, rand.IntN(math.MaxInt8))
+			for i := range want {
+				want[i] = rand.Int32() - math.MaxInt32/2
+			}
+
+			encodeDecodeComparableSlice(t, want)
+		})
+		t.Run("int64", func(t *testing.T) {
+			t.Parallel()
+
+			want := make([]int64, rand.IntN(math.MaxInt8))
+			for i := range want {
+				want[i] = rand.Int64() - math.MaxInt64/2
+			}
+
+			encodeDecodeComparableSlice(t, want)
+		})
+		t.Run("uint", func(t *testing.T) {
+			t.Parallel()
+
+			want := make([]uint, rand.IntN(math.MaxInt8))
+			for i := range want {
+				want[i] = rand.Uint()
+			}
+
+			encodeDecodeComparableSlice(t, want)
+		})
+		t.Run("uint8", func(t *testing.T) {
+			t.Parallel()
+
+			want := make([]uint8, rand.IntN(math.MaxInt8))
+			for i := range want {
+				want[i] = uint8(rand.IntN(math.MaxUint8))
+			}
+
+			encodeDecodeComparableSlice(t, want)
+		})
+		t.Run("uint16", func(t *testing.T) {
+			t.Parallel()
+
+			want := make([]uint16, rand.IntN(math.MaxInt8))
+			for i := range want {
+				want[i] = uint16(rand.IntN(math.MaxUint16))
+			}
+
+			encodeDecodeComparableSlice(t, want)
+		})
+		t.Run("uint32", func(t *testing.T) {
+			t.Parallel()
+
+			want := make([]uint32, rand.IntN(math.MaxInt8))
+			for i := range want {
+				want[i] = rand.Uint32()
+			}
+
+			encodeDecodeComparableSlice(t, want)
+		})
+		t.Run("uint64", func(t *testing.T) {
+			t.Parallel()
+
+			want := make([]uint64, rand.IntN(math.MaxInt8))
+			for i := range want {
+				want[i] = rand.Uint64()
+			}
+
+			encodeDecodeComparableSlice(t, want)
+		})
+		t.Run("float32", func(t *testing.T) {
+			t.Parallel()
+
+			want := make([]float32, rand.IntN(math.MaxInt8))
+			for i := range want {
+				want[i] = 2*rand.Float32() - 1
+			}
+
+			encodeDecodeComparableSlice(t, want)
+		})
+		t.Run("float64", func(t *testing.T) {
+			t.Parallel()
+
+			want := make([]float64, rand.IntN(math.MaxInt8))
+			for i := range want {
+				want[i] = 2*rand.Float64() - 1
+			}
+
+			encodeDecodeComparableSlice(t, want)
+		})
+		t.Run("complex64", func(t *testing.T) {
+			t.Parallel()
+
+			want := make([]complex64, rand.IntN(math.MaxInt8))
+			for i := range want {
+				want[i] = complex64(complex(2*rand.Float64()-1, 2*rand.Float64()-1))
+			}
+
+			encodeDecodeComparableSlice(t, want)
+		})
+		t.Run("complex128", func(t *testing.T) {
+			t.Parallel()
+
+			want := make([]complex128, rand.IntN(math.MaxInt8))
+			for i := range want {
+				want[i] = complex(2*rand.Float64()-1, 2*rand.Float64()-1)
+			}
+
+			encodeDecodeComparableSlice(t, want)
+		})
+		t.Run("string", func(t *testing.T) {
+			t.Parallel()
+
+			want := make([]string, rand.IntN(math.MaxInt8))
+			for i := range want {
+				want[i] = cryptorand.Text()
+			}
+
+			encodeDecodeComparableSlice(t, want)
+		})
+		t.Run("struct", func(t *testing.T) {
+			t.Parallel()
+
+			want := make([]ComparableStruct, rand.IntN(math.MaxInt8))
+			for i := range want {
+				want[i] = makeComparableStruct(t)
+			}
+
+			encodeDecodeComparableSlice(t, want)
+		})
+	})
+	t.Run("map", func(t *testing.T) {
+		t.Parallel()
+
+		want := make(map[uint64]float32, 10)
+
+		for range 10 {
+			want[rand.Uint64()] = rand.Float32()
+		}
+
+		d, err := Encode(want)
+		if err != nil {
+			t.Fatalf("Encode: %s", err.Error())
+		}
+
+		got, err := Decode[map[uint64]float32](d)
+		if err != nil {
+			t.Fatalf("Decode: %s", err.Error())
+		}
+
+		if len(got) != len(want) {
+			t.Errorf("got len %d, want len %d", len(got), len(want))
+		}
+
+		for k, g := range got {
+			w, ok := want[k]
+			if !ok {
+				t.Errorf("missing key %d", k)
+			}
+
+			if g != w {
+				t.Errorf("key %d: got %+v, want %+v", k, g, w)
+			}
+		}
+	})
 }
 
 func encodeDecodeComparable[T comparable](t *testing.T, want T) {

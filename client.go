@@ -7,18 +7,16 @@ import (
 	"hash/maphash"
 	"net/http"
 	"strings"
-	"sync"
 	"weak"
 
 	"github.com/samborkent/gorpc/goc"
+	isync "github.com/samborkent/gorpc/internal/sync"
 )
 
 type Client[Request, Response any] struct {
-	client     *http.Client
-	addr, hash string
-	// TODO: use sync.Map?
-	cache                   map[uint64]weak.Pointer[Response]
-	cacheLock               *sync.RWMutex
+	client                  *http.Client
+	addr, hash              string
+	cache                   isync.Map[uint64, weak.Pointer[Response]]
 	seed                    maphash.Seed
 	cacheResponse, validate bool
 }
@@ -39,17 +37,14 @@ func NewClient[Request, Response any](addr string, options ...ClientOption) (*Cl
 		client = cfg.client
 	} else {
 		client = &http.Client{
-			Transport: httpDefaultTransport,
+			Transport: httpRoundTripper,
 		}
 	}
 
 	return &Client[Request, Response]{
-		client: client,
-		addr:   strings.TrimRight(addr, "/") + "/" + hash,
-		hash:   hash,
-		// TODO: determine appropriate initial size.
-		cache:         make(map[uint64]weak.Pointer[Response], 1),
-		cacheLock:     new(sync.RWMutex),
+		client:        client,
+		addr:          strings.TrimRight(addr, "/") + "/" + hash,
+		hash:          hash,
 		seed:          maphash.MakeSeed(),
 		cacheResponse: cfg.cacheResponse,
 		validate:      cfg.validate,
@@ -75,19 +70,20 @@ func (c *Client[Request, Response]) do(ctx context.Context, req *Request) (*Resp
 		return nil, fmt.Errorf("encoding request: %w", err)
 	}
 
-	var payloadHash uint64
+	var (
+		cachedResponse weak.Pointer[Response]
+		payloadHash    uint64
+	)
 
 	if c.cacheResponse {
 		payloadHash = maphash.Bytes(c.seed, data)
 
-		// TODO: get rid of lock
-		c.cacheLock.RLock()
-		res, ok := c.cache[payloadHash]
-		c.cacheLock.RUnlock()
+		var ok bool
 
-		if ok && res.Value() != nil {
+		cachedResponse, ok = c.cache.Load(payloadHash)
+		if ok && cachedResponse.Value() != nil {
 			// TODO: resolve race-condition
-			return res.Value(), nil
+			return cachedResponse.Value(), nil
 		}
 	}
 
@@ -117,11 +113,7 @@ func (c *Client[Request, Response]) do(ctx context.Context, req *Request) (*Resp
 	}
 
 	if c.cacheResponse && payloadHash != 0 {
-		weakRef := weak.Make(&res)
-
-		c.cacheLock.Lock()
-		c.cache[payloadHash] = weakRef
-		c.cacheLock.Unlock()
+		_ = c.cache.CompareAndSwap(payloadHash, cachedResponse, weak.Make(&res))
 	}
 
 	return &res, nil

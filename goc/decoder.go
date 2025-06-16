@@ -22,8 +22,10 @@ func Decode[T any](b []byte) (T, error) {
 }
 
 func DecodeFrom[T any](r io.Reader) (T, error) {
+	val := new(T)
+
 	// Try to decode through interface implementation.
-	switch decoder := any(new(T)).(type) {
+	switch decoder := any(val).(type) {
 	case DecodeReader:
 		return decodeDecodeReader[T](r, decoder)
 	case Decoder:
@@ -32,7 +34,7 @@ func DecodeFrom[T any](r io.Reader) (T, error) {
 		return decodeBinaryUnmarshaler[T](r, decoder)
 	}
 
-	switch decoder := any(*new(T)).(type) {
+	switch decoder := any(*val).(type) {
 	case DecodeReader:
 		return decodeDecodeReader[T](r, decoder)
 	case Decoder:
@@ -40,9 +42,11 @@ func DecodeFrom[T any](r io.Reader) (T, error) {
 	case encoding.BinaryUnmarshaler:
 		return decodeBinaryUnmarshaler[T](r, decoder)
 	}
+
+	var zero T
 
 	// Try to decode concrete type.
-	switch reflect.TypeOf(*new(T)).Kind() {
+	switch reflect.TypeOf(val).Kind() {
 	case reflect.Bool,
 		reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
@@ -50,25 +54,23 @@ func DecodeFrom[T any](r io.Reader) (T, error) {
 		reflect.Complex64, reflect.Complex128:
 		val, err := decodeConcrete[T](r)
 		if err != nil {
-			return *new(T), fmt.Errorf("decoding %s: %w", reflect.TypeOf(*new(T)).String(), err)
+			return zero, fmt.Errorf("decoding %s: %w", reflect.TypeOf(zero).String(), err)
 		}
 
 		return val, nil
 	case reflect.String:
 		strBytes, err := io.ReadAll(r)
 		if err != nil {
-			return *new(T), fmt.Errorf("reading encoded string: %w", err)
+			return zero, fmt.Errorf("reading encoded string: %w", err)
 		}
 
 		// TODO: avoid allocation
 		return castGeneric[T](string(strBytes))
 	}
 
-	val := new(T)
-
 	// Decode through reflection.
 	if err := DecodeValue(r, reflect.ValueOf(val)); err != nil {
-		return *new(T), fmt.Errorf("DecodeValue: %w", err)
+		return zero, fmt.Errorf("DecodeValue: %w", err)
 	}
 
 	return *val, nil
@@ -119,7 +121,6 @@ func decodeValue(r io.Reader, v reflect.Value) error {
 		reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
 		reflect.Float32, reflect.Float64,
 		reflect.Complex64, reflect.Complex128:
-		// TODO: sync.Pool
 		d = make([]byte, t.Size())
 
 		n, err := r.Read(d)
@@ -288,10 +289,16 @@ func decodeValue(r io.Reader, v reflect.Value) error {
 			elemType = elemType.Elem()
 		}
 
+		// Allocate underlying slice.
+		if v.Kind() == reflect.Slice {
+			v.Grow(length)
+			v.SetLen(length)
+		}
+
 		// Decode slice with underlying type of variable size.
 		for i := range length {
 			if err := decodeValue(r, v.Index(i)); err != nil {
-				return fmt.Errorf("decoding %s index %d of type %s: %w", v.Kind(), i, v.Index(i).Type().String(), err)
+				return fmt.Errorf("decoding %s index %d of type %s: %w", v.Kind().String(), i, elemType.String(), err)
 			}
 		}
 
@@ -313,17 +320,18 @@ func decodeValue(r io.Reader, v reflect.Value) error {
 		for range length {
 			key := reflect.New(v.Type().Key())
 
+			// As
 			if err := decodeValue(r, key); err != nil {
 				return fmt.Errorf("decoding map key: %w", err)
 			}
 
-			value := reflect.New(v.Type().Elem())
+			// value := reflect.New(v.Type().Elem())
 
-			if err := decodeValue(r, value); err != nil {
+			if err := decodeValue(r, v.MapIndex(key)); err != nil {
 				return fmt.Errorf("decoding map value: %w", err)
 			}
 
-			v.SetMapIndex(key.Elem(), value.Elem())
+			// v.SetMapIndex(key.Elem(), value.Elem())
 		}
 
 		return nil

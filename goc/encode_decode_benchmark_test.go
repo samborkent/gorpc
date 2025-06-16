@@ -3,9 +3,6 @@ package goc_test
 import (
 	"bytes"
 	cryptorand "crypto/rand"
-	"encoding/gob"
-	jsonv1 "encoding/json"
-	"encoding/json/v2"
 	mathrand "math/rand/v2"
 	"testing"
 
@@ -20,182 +17,182 @@ type Object struct {
 
 var object Object
 
-func BenchmarkJSONV1Encode(b *testing.B) {
-	buf := new(bytes.Buffer)
-	encoder := jsonv1.NewEncoder(buf)
+// func BenchmarkJSONV1Encode(b *testing.B) {
+// 	buf := new(bytes.Buffer)
+// 	encoder := jsonv1.NewEncoder(buf)
 
-	for b.Loop() {
-		b.StopTimer()
-		buf.Reset()
+// 	for b.Loop() {
+// 		b.StopTimer()
+// 		buf.Reset()
 
-		object = Object{
-			Num: mathrand.Uint64(),
-			Str: cryptorand.Text(),
-			Map: map[string]string{
-				cryptorand.Text(): cryptorand.Text(),
-				cryptorand.Text(): cryptorand.Text(),
-				cryptorand.Text(): cryptorand.Text(),
-				cryptorand.Text(): cryptorand.Text(),
-			},
-		}
-		b.StartTimer()
+// 		object = Object{
+// 			Num: mathrand.Uint64(),
+// 			Str: cryptorand.Text(),
+// 			Map: map[string]string{
+// 				cryptorand.Text(): cryptorand.Text(),
+// 				cryptorand.Text(): cryptorand.Text(),
+// 				cryptorand.Text(): cryptorand.Text(),
+// 				cryptorand.Text(): cryptorand.Text(),
+// 			},
+// 		}
+// 		b.StartTimer()
 
-		if err := encoder.Encode(object); err != nil {
-			b.Log("error: " + err.Error())
-			return
-		}
-	}
-}
+// 		if err := encoder.Encode(object); err != nil {
+// 			b.Log("error: " + err.Error())
+// 			return
+// 		}
+// 	}
+// }
 
-func BenchmarkJSONV1Decode(b *testing.B) {
-	buf := new(bytes.Buffer)
-	encoder := jsonv1.NewEncoder(buf)
-	decoder := jsonv1.NewDecoder(buf)
+// func BenchmarkJSONV1Decode(b *testing.B) {
+// 	buf := new(bytes.Buffer)
+// 	encoder := jsonv1.NewEncoder(buf)
+// 	decoder := jsonv1.NewDecoder(buf)
 
-	for b.Loop() {
-		b.StopTimer()
-		buf.Reset()
+// 	for b.Loop() {
+// 		b.StopTimer()
+// 		buf.Reset()
 
-		object = Object{
-			Num: mathrand.Uint64(),
-			Str: cryptorand.Text(),
-			Map: map[string]string{
-				cryptorand.Text(): cryptorand.Text(),
-				cryptorand.Text(): cryptorand.Text(),
-				cryptorand.Text(): cryptorand.Text(),
-				cryptorand.Text(): cryptorand.Text(),
-			},
-		}
+// 		object = Object{
+// 			Num: mathrand.Uint64(),
+// 			Str: cryptorand.Text(),
+// 			Map: map[string]string{
+// 				cryptorand.Text(): cryptorand.Text(),
+// 				cryptorand.Text(): cryptorand.Text(),
+// 				cryptorand.Text(): cryptorand.Text(),
+// 				cryptorand.Text(): cryptorand.Text(),
+// 			},
+// 		}
 
-		if err := encoder.Encode(object); err != nil {
-			b.Log("Encode error: " + err.Error())
-			return
-		}
-		b.StartTimer()
+// 		if err := encoder.Encode(object); err != nil {
+// 			b.Log("Encode error: " + err.Error())
+// 			return
+// 		}
+// 		b.StartTimer()
 
-		if err := decoder.Decode(&object); err != nil {
-			b.Log("Decode error: " + err.Error())
-			return
-		}
-	}
-}
+// 		if err := decoder.Decode(&object); err != nil {
+// 			b.Log("Decode error: " + err.Error())
+// 			return
+// 		}
+// 	}
+// }
 
-func BenchmarkJSONV2Encode(b *testing.B) {
-	buf := new(bytes.Buffer)
+// func BenchmarkJSONV2Encode(b *testing.B) {
+// 	buf := new(bytes.Buffer)
 
-	for b.Loop() {
-		b.StopTimer()
-		buf.Reset()
+// 	for b.Loop() {
+// 		b.StopTimer()
+// 		buf.Reset()
 
-		object = Object{
-			Num: mathrand.Uint64(),
-			Str: cryptorand.Text(),
-			Map: map[string]string{
-				cryptorand.Text(): cryptorand.Text(),
-				cryptorand.Text(): cryptorand.Text(),
-				cryptorand.Text(): cryptorand.Text(),
-				cryptorand.Text(): cryptorand.Text(),
-			},
-		}
-		b.StartTimer()
+// 		object = Object{
+// 			Num: mathrand.Uint64(),
+// 			Str: cryptorand.Text(),
+// 			Map: map[string]string{
+// 				cryptorand.Text(): cryptorand.Text(),
+// 				cryptorand.Text(): cryptorand.Text(),
+// 				cryptorand.Text(): cryptorand.Text(),
+// 				cryptorand.Text(): cryptorand.Text(),
+// 			},
+// 		}
+// 		b.StartTimer()
 
-		if err := json.MarshalWrite(buf, object); err != nil {
-			b.Log("error: " + err.Error())
-			return
-		}
-	}
-}
+// 		if err := json.MarshalWrite(buf, object); err != nil {
+// 			b.Log("error: " + err.Error())
+// 			return
+// 		}
+// 	}
+// }
 
-func BenchmarkJSONV2Decode(b *testing.B) {
-	buf := new(bytes.Buffer)
+// func BenchmarkJSONV2Decode(b *testing.B) {
+// 	buf := new(bytes.Buffer)
 
-	for b.Loop() {
-		b.StopTimer()
-		buf.Reset()
+// 	for b.Loop() {
+// 		b.StopTimer()
+// 		buf.Reset()
 
-		object = Object{
-			Num: mathrand.Uint64(),
-			Str: cryptorand.Text(),
-			Map: map[string]string{
-				cryptorand.Text(): cryptorand.Text(),
-				cryptorand.Text(): cryptorand.Text(),
-				cryptorand.Text(): cryptorand.Text(),
-				cryptorand.Text(): cryptorand.Text(),
-			},
-		}
+// 		object = Object{
+// 			Num: mathrand.Uint64(),
+// 			Str: cryptorand.Text(),
+// 			Map: map[string]string{
+// 				cryptorand.Text(): cryptorand.Text(),
+// 				cryptorand.Text(): cryptorand.Text(),
+// 				cryptorand.Text(): cryptorand.Text(),
+// 				cryptorand.Text(): cryptorand.Text(),
+// 			},
+// 		}
 
-		if err := json.MarshalWrite(buf, object); err != nil {
-			b.Log("MarshalWrite error: " + err.Error())
-			return
-		}
-		b.StartTimer()
+// 		if err := json.MarshalWrite(buf, object); err != nil {
+// 			b.Log("MarshalWrite error: " + err.Error())
+// 			return
+// 		}
+// 		b.StartTimer()
 
-		if err := json.UnmarshalRead(buf, &object); err != nil {
-			b.Log("UnmarshalRead error: " + err.Error())
-			return
-		}
-	}
-}
+// 		if err := json.UnmarshalRead(buf, &object); err != nil {
+// 			b.Log("UnmarshalRead error: " + err.Error())
+// 			return
+// 		}
+// 	}
+// }
 
-func BenchmarkGobEncode(b *testing.B) {
-	buf := new(bytes.Buffer)
-	encoder := gob.NewEncoder(buf)
+// func BenchmarkGobEncode(b *testing.B) {
+// 	buf := new(bytes.Buffer)
+// 	encoder := gob.NewEncoder(buf)
 
-	for b.Loop() {
-		b.StopTimer()
-		buf.Reset()
+// 	for b.Loop() {
+// 		b.StopTimer()
+// 		buf.Reset()
 
-		object = Object{
-			Num: mathrand.Uint64(),
-			Str: cryptorand.Text(),
-			Map: map[string]string{
-				cryptorand.Text(): cryptorand.Text(),
-				cryptorand.Text(): cryptorand.Text(),
-				cryptorand.Text(): cryptorand.Text(),
-				cryptorand.Text(): cryptorand.Text(),
-			},
-		}
-		b.StartTimer()
+// 		object = Object{
+// 			Num: mathrand.Uint64(),
+// 			Str: cryptorand.Text(),
+// 			Map: map[string]string{
+// 				cryptorand.Text(): cryptorand.Text(),
+// 				cryptorand.Text(): cryptorand.Text(),
+// 				cryptorand.Text(): cryptorand.Text(),
+// 				cryptorand.Text(): cryptorand.Text(),
+// 			},
+// 		}
+// 		b.StartTimer()
 
-		if err := encoder.Encode(object); err != nil {
-			b.Log("error: " + err.Error())
-			return
-		}
-	}
-}
+// 		if err := encoder.Encode(object); err != nil {
+// 			b.Log("error: " + err.Error())
+// 			return
+// 		}
+// 	}
+// }
 
-func BenchmarkGobDecode(b *testing.B) {
-	buf := new(bytes.Buffer)
-	encoder := gob.NewEncoder(buf)
-	decoder := gob.NewDecoder(buf)
+// func BenchmarkGobDecode(b *testing.B) {
+// 	buf := new(bytes.Buffer)
+// 	encoder := gob.NewEncoder(buf)
+// 	decoder := gob.NewDecoder(buf)
 
-	for b.Loop() {
-		b.StopTimer()
-		buf.Reset()
+// 	for b.Loop() {
+// 		b.StopTimer()
+// 		buf.Reset()
 
-		object = Object{
-			Num: mathrand.Uint64(),
-			Str: cryptorand.Text(),
-			Map: map[string]string{
-				cryptorand.Text(): cryptorand.Text(),
-				cryptorand.Text(): cryptorand.Text(),
-				cryptorand.Text(): cryptorand.Text(),
-				cryptorand.Text(): cryptorand.Text(),
-			},
-		}
+// 		object = Object{
+// 			Num: mathrand.Uint64(),
+// 			Str: cryptorand.Text(),
+// 			Map: map[string]string{
+// 				cryptorand.Text(): cryptorand.Text(),
+// 				cryptorand.Text(): cryptorand.Text(),
+// 				cryptorand.Text(): cryptorand.Text(),
+// 				cryptorand.Text(): cryptorand.Text(),
+// 			},
+// 		}
 
-		if err := encoder.Encode(object); err != nil {
-			b.Log("Encode error: " + err.Error())
-			return
-		}
-		b.StartTimer()
+// 		if err := encoder.Encode(object); err != nil {
+// 			b.Log("Encode error: " + err.Error())
+// 			return
+// 		}
+// 		b.StartTimer()
 
-		if err := decoder.Decode(&object); err != nil {
-			b.Log("Decode error: " + err.Error())
-			return
-		}
-	}
-}
+// 		if err := decoder.Decode(&object); err != nil {
+// 			b.Log("Decode error: " + err.Error())
+// 			return
+// 		}
+// 	}
+// }
 
 func BenchmarkGocEncode(b *testing.B) {
 	buf := new(bytes.Buffer)

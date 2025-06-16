@@ -32,3 +32,21 @@ BenchmarkGocEncode-16             654872              1741 ns/op             528
 BenchmarkGocDecode-16             479229              2375 ns/op            1184 B/op         42 allocs/op
 PASS
 ok      github.com/samborkent/gorpc/goc 148.112s
+
+2025-06-15 18:50 Battery
+After removing all uses of unsafe, and added pool for concrete types.
+
+goos: linux
+goarch: amd64
+pkg: github.com/samborkent/gorpc/goc
+cpu: AMD Ryzen 7 5800H with Radeon Graphics         
+BenchmarkJSONV1Encode-16          466072              2424 ns/op             290 B/op          9 allocs/op
+BenchmarkJSONV1Decode-16          378337              3206 ns/op             515 B/op         16 allocs/op
+BenchmarkJSONV2Encode-16          590839              2017 ns/op             225 B/op          5 allocs/op
+BenchmarkJSONV2Decode-16          368089              3100 ns/op             771 B/op         18 allocs/op
+BenchmarkGobEncode-16             842136              1413 ns/op             160 B/op          9 allocs/op
+BenchmarkGobDecode-16             737209              1622 ns/op             736 B/op         14 allocs/op
+BenchmarkGocEncode-16             701169              1655 ns/op             528 B/op         30 allocs/op
+BenchmarkGocDecode-16             434347              2591 ns/op            1210 B/op         42 allocs/op
+PASS
+ok      github.com/samborkent/gorpc/goc 154.169s

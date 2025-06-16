@@ -11,10 +11,8 @@ func encodeConcrete[T any](w io.Writer, v T) error {
 	// TODO: use sync.Pool
 	d := make([]byte, 0, reflect.TypeFor[T]().Size())
 
-	var zero T
-
 	// TODO: add int, uint, uintptr?
-	switch t := any(zero).(type) {
+	switch t := any(v).(type) {
 	case bool:
 		d = append(d, encodeBool(t))
 	case int8:
