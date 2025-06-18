@@ -46,7 +46,7 @@ func DecodeFrom[T any](r io.Reader) (T, error) {
 	var zero T
 
 	// Try to decode concrete type.
-	switch reflect.TypeOf(val).Kind() {
+	switch reflect.TypeOf(zero).Kind() {
 	case reflect.Bool,
 		reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
@@ -84,11 +84,13 @@ var (
 
 func DecodeValue(r io.Reader, v reflect.Value) error {
 	if v.CanAddr() {
-		if v.Type().Implements(reflectDecodeReader) {
+		t := v.Type()
+
+		if t.Implements(reflectDecodeReader) {
 			return decodeValueDecodeReader(r, v)
-		} else if v.Type().Implements(reflectDecoder) {
+		} else if t.Implements(reflectDecoder) {
 			return decodeValueDecoder(r, v)
-		} else if v.Type().Implements(reflectBinaryUnmarshaller) {
+		} else if t.Implements(reflectBinaryUnmarshaller) {
 			return decodeValueBinaryUnmarshaler(r, v)
 		}
 	}
@@ -315,27 +317,27 @@ func decodeValue(r io.Reader, v reflect.Value) error {
 
 		length := int(length32)
 
-		v.Set(reflect.MakeMapWithSize(v.Type(), length))
+		v.Set(reflect.MakeMapWithSize(t, length))
 
 		for range length {
-			key := reflect.New(v.Type().Key())
+			key := reflect.New(t.Key())
 
 			// As
 			if err := decodeValue(r, key); err != nil {
 				return fmt.Errorf("decoding map key: %w", err)
 			}
 
-			// value := reflect.New(v.Type().Elem())
+			value := reflect.New(t.Elem())
 
-			if err := decodeValue(r, v.MapIndex(key)); err != nil {
+			if err := decodeValue(r, value); err != nil {
 				return fmt.Errorf("decoding map value: %w", err)
 			}
 
-			// v.SetMapIndex(key.Elem(), value.Elem())
+			v.SetMapIndex(key.Elem(), value.Elem())
 		}
 
 		return nil
 	default:
-		return fmt.Errorf("decoding of type %s is not supported", v.Type().String())
+		return fmt.Errorf("decoding of type %s is not supported", t.String())
 	}
 }
