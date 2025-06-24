@@ -48,7 +48,7 @@ func TestEncodingSizes(t *testing.T) {
 	t.Logf("gob: %d", buf.Len())
 	buf.Reset()
 
-	if err := goc.EncodeBuffer(buf, object); err != nil {
+	if err := goc.EncodeByteWrite(buf, object); err != nil {
 		t.Fatal("goc: " + err.Error())
 	}
 
@@ -188,7 +188,7 @@ func BenchmarkGocEncode(b *testing.B) {
 		object = newObject()
 		b.StartTimer()
 
-		if err := goc.EncodeBuffer(buf, object); err != nil {
+		if err := goc.EncodeByteWrite(buf, object); err != nil {
 			b.Log("error: " + err.Error())
 			return
 		}

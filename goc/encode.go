@@ -15,7 +15,7 @@ func encodeBuffer[T any](out *bytes.Buffer, in T) error {
 }
 
 var (
-	reflectBufferedEncoder  = reflect.TypeFor[BufferedEncoder]()
+	reflectEncodeByteWriter = reflect.TypeFor[EncodeByteWriter]()
 	reflectEncodeWriter     = reflect.TypeFor[EncodeWriter]()
 	reflectEncoder          = reflect.TypeFor[Encoder]()
 	reflectBinaryMarshaller = reflect.TypeFor[encoding.BinaryMarshaler]()
@@ -23,8 +23,8 @@ var (
 
 func encodeValueWithInterfaces(b *bytes.Buffer, v reflect.Value, t reflect.Type) error {
 	switch {
-	case t.Implements(reflectBufferedEncoder):
-		return v.Interface().(BufferedEncoder).EncodeBuffer(b)
+	case t.Implements(reflectEncodeByteWriter):
+		return v.Interface().(EncodeByteWriter).EncodeBuffer(b)
 	case t.Implements(reflectEncodeWriter):
 		_, err := v.Interface().(EncodeWriter).EncodeWrite(b)
 		return err
@@ -193,7 +193,7 @@ func encodeValue(b *bytes.Buffer, v reflect.Value, t reflect.Type) error {
 		elemType := v.Index(0).Type()
 
 		// Encode slice with underlying type of variable size.
-		if elemType.Implements(reflectBufferedEncoder) ||
+		if elemType.Implements(reflectEncodeByteWriter) ||
 			elemType.Implements(reflectEncodeWriter) ||
 			elemType.Implements(reflectEncoder) ||
 			elemType.Implements(reflectBinaryMarshaller) {
@@ -250,6 +250,8 @@ func encodeValue(b *bytes.Buffer, v reflect.Value, t reflect.Type) error {
 		}
 
 		return nil
+	default:
+		return fmt.Errorf("encoding of type %s is not supported", t.String())
 	}
 
 	if len(data) > 0 {

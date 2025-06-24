@@ -56,7 +56,7 @@ func main() {
 		default:
 			buf := new(bytes.Buffer)
 
-			if err := goc.EncodeBuffer(buf, object); err != nil {
+			if err := goc.EncodeByteWrite(buf, object); err != nil {
 				panic(err.Error())
 			}
 
