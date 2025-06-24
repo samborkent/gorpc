@@ -28,7 +28,7 @@ func NewRequest[Req, Res any](ctx context.Context, addr string, req *Req) (*Requ
 		reqPool.Put(buf)
 	}()
 
-	if err := goc.EncodeTo(buf, req); err != nil {
+	if err := goc.EncodeBuffer(buf, req); err != nil {
 		return nil, fmt.Errorf("encoding request: %w", err)
 	}
 

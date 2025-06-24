@@ -181,7 +181,6 @@ func decodeValue(r io.Reader, v reflect.Value) error {
 		v.SetInt(decodeInt64(d))
 		return nil
 	case reflect.Uint, reflect.Uintptr:
-		// TODO: test
 		var header [1]byte
 
 		n, err := r.Read(header[:])
@@ -238,7 +237,7 @@ func decodeValue(r io.Reader, v reflect.Value) error {
 		v.SetComplex(decodeComplex128(d))
 		return nil
 	case reflect.String:
-		length, err := decodeConcrete[uint32](r)
+		length, err := decodeConcrete[uint16](r)
 		if err != nil {
 			return fmt.Errorf("decoding string length: %w", err)
 		}
@@ -268,7 +267,7 @@ func decodeValue(r io.Reader, v reflect.Value) error {
 
 		return nil
 	case reflect.Array, reflect.Slice:
-		length32, err := decodeConcrete[uint32](r)
+		length32, err := decodeConcrete[uint16](r)
 		if err != nil {
 			return fmt.Errorf("decoding %s length: %w", v.Kind(), err)
 		}
@@ -306,7 +305,7 @@ func decodeValue(r io.Reader, v reflect.Value) error {
 
 		return nil
 	case reflect.Map:
-		length32, err := decodeConcrete[uint32](r)
+		length32, err := decodeConcrete[uint16](r)
 		if err != nil {
 			return fmt.Errorf("decoding map length: %w", err)
 		}

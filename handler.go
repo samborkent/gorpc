@@ -157,7 +157,8 @@ func handler[Request, Response any](h HandlerFunc[Request, Response], cacheRespo
 			// TODO: define constants
 			w.Header().Set("Cache-Control", "no-store")
 
-			if err := goc.EncodeTo(w, res); err != nil {
+			_, err := goc.EncodeWrite(w, res)
+			if err != nil {
 				http.Error(w, httpErrResponse, http.StatusInternalServerError)
 				return
 			}
