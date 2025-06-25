@@ -106,7 +106,9 @@ func (c *Client[Request, Response]) do(ctx context.Context, req *Request) (*Resp
 		return nil, fmt.Errorf("http error: %s", httpRes.Status)
 	}
 
-	res, err := goc.DecodeFrom[Response](httpRes.Body)
+	var res Response
+
+	err = goc.DecodeRead(httpRes.Body, &res)
 	_ = httpRes.Body.Close()
 	if err != nil {
 		return nil, fmt.Errorf("decoding response: %w", err)

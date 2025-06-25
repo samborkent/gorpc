@@ -48,7 +48,7 @@ func TestServerClient(t *testing.T) {
 		}
 
 		if !strings.Contains(err.Error(), "404 Not Found") {
-			t.Error("expected not found error")
+			t.Error("expected not found error: " + err.Error())
 		}
 
 		if resp != nil {

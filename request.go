@@ -60,8 +60,9 @@ func Do[Req, Res any](r *Request[Req, Res]) (*Res, error) {
 		return nil, fmt.Errorf("http error: %s", httpRes.Status)
 	}
 
-	res, err := goc.DecodeFrom[Res](httpRes.Body)
-	if err != nil {
+	var res Res
+
+	if err := goc.DecodeRead(httpRes.Body, &res); err != nil {
 		return nil, fmt.Errorf("decoding response: %w", err)
 	}
 

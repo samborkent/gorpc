@@ -105,14 +105,13 @@ func handler[Request, Response any](h HandlerFunc[Request, Response], cacheRespo
 			cacheLock.RUnlock()
 
 			if ok && res.Value() != nil {
-				req, err = goc.Decode[Request](body)
-				if err != nil {
+				if err = goc.Decode(body, &req); err != nil {
 					http.Error(w, httpErrRequest, http.StatusBadRequest)
 					return
 				}
 			}
 		} else {
-			req, err = goc.DecodeFrom[Request](r.Body)
+			err := goc.DecodeRead(r.Body, &req)
 			_ = r.Body.Close()
 			if err != nil {
 				http.Error(w, httpErrRequest, http.StatusBadRequest)

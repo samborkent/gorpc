@@ -357,8 +357,9 @@ func TestEncodeDecode(t *testing.T) {
 			t.Fatalf("Encode: %s", err.Error())
 		}
 
-		got, err := Decode[map[uint64]float32](d)
-		if err != nil {
+		var got map[uint64]float32
+
+		if err := Decode(d, &got); err != nil {
 			t.Fatalf("Decode: %s", err.Error())
 		}
 
@@ -387,8 +388,9 @@ func encodeDecodeComparable[T comparable](t *testing.T, want T) {
 		t.Fatalf("Encode: %s", err.Error())
 	}
 
-	got, err := Decode[T](d)
-	if err != nil {
+	var got T
+
+	if err := Decode(d, &got); err != nil {
 		t.Fatalf("Decode: %s", err.Error())
 	}
 
@@ -405,8 +407,9 @@ func encodeDecodeComparableSlice[T comparable](t *testing.T, want []T) {
 		t.Fatalf("Encode: %s", err.Error())
 	}
 
-	got, err := Decode[[]T](d)
-	if err != nil {
+	var got []T
+
+	if err := Decode(d, &got); err != nil {
 		t.Fatalf("Decode: %s", err.Error())
 	}
 

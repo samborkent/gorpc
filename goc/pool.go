@@ -1,12 +1,5 @@
 package goc
 
-import (
-	"bytes"
-	"sync"
-)
+import "github.com/samborkent/gorpc/goc/internal/pool"
 
-var bytesBufferPool = sync.Pool{
-	New: func() any {
-		return new(bytes.Buffer)
-	},
-}
+var bytesBufferPool = pool.NewBytesBuffer()

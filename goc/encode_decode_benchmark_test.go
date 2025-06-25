@@ -73,29 +73,29 @@ func BenchmarkJSONV1Encode(b *testing.B) {
 	}
 }
 
-// func BenchmarkJSONV1Decode(b *testing.B) {
-// 	buf := new(bytes.Buffer)
-// 	encoder := jsonv1.NewEncoder(buf)
-// 	decoder := jsonv1.NewDecoder(buf)
+func BenchmarkJSONV1Decode(b *testing.B) {
+	buf := new(bytes.Buffer)
+	encoder := jsonv1.NewEncoder(buf)
+	decoder := jsonv1.NewDecoder(buf)
 
-// 	for b.Loop() {
-// 		b.StopTimer()
-// 		buf.Reset()
+	for b.Loop() {
+		b.StopTimer()
+		buf.Reset()
 
-// 		object = newObject()
+		object = newObject()
 
-// 		if err := encoder.Encode(object); err != nil {
-// 			b.Log("Encode error: " + err.Error())
-// 			return
-// 		}
-// 		b.StartTimer()
+		if err := encoder.Encode(object); err != nil {
+			b.Log("Encode error: " + err.Error())
+			return
+		}
+		b.StartTimer()
 
-// 		if err := decoder.Decode(&object); err != nil {
-// 			b.Log("Decode error: " + err.Error())
-// 			return
-// 		}
-// 	}
-// }
+		if err := decoder.Decode(&object); err != nil {
+			b.Log("Decode error: " + err.Error())
+			return
+		}
+	}
+}
 
 func BenchmarkJSONV2Encode(b *testing.B) {
 	buf := new(bytes.Buffer)
@@ -114,27 +114,27 @@ func BenchmarkJSONV2Encode(b *testing.B) {
 	}
 }
 
-// func BenchmarkJSONV2Decode(b *testing.B) {
-// 	buf := new(bytes.Buffer)
+func BenchmarkJSONV2Decode(b *testing.B) {
+	buf := new(bytes.Buffer)
 
-// 	for b.Loop() {
-// 		b.StopTimer()
-// 		buf.Reset()
+	for b.Loop() {
+		b.StopTimer()
+		buf.Reset()
 
-// 		object = newObject()
+		object = newObject()
 
-// 		if err := json.MarshalWrite(buf, object); err != nil {
-// 			b.Log("MarshalWrite error: " + err.Error())
-// 			return
-// 		}
-// 		b.StartTimer()
+		if err := json.MarshalWrite(buf, object); err != nil {
+			b.Log("MarshalWrite error: " + err.Error())
+			return
+		}
+		b.StartTimer()
 
-// 		if err := json.UnmarshalRead(buf, &object); err != nil {
-// 			b.Log("UnmarshalRead error: " + err.Error())
-// 			return
-// 		}
-// 	}
-// }
+		if err := json.UnmarshalRead(buf, &object); err != nil {
+			b.Log("UnmarshalRead error: " + err.Error())
+			return
+		}
+	}
+}
 
 func BenchmarkGobEncode(b *testing.B) {
 	buf := new(bytes.Buffer)
@@ -154,29 +154,29 @@ func BenchmarkGobEncode(b *testing.B) {
 	}
 }
 
-// func BenchmarkGobDecode(b *testing.B) {
-// 	buf := new(bytes.Buffer)
-// 	encoder := gob.NewEncoder(buf)
-// 	decoder := gob.NewDecoder(buf)
+func BenchmarkGobDecode(b *testing.B) {
+	buf := new(bytes.Buffer)
+	encoder := gob.NewEncoder(buf)
+	decoder := gob.NewDecoder(buf)
 
-// 	for b.Loop() {
-// 		b.StopTimer()
-// 		buf.Reset()
+	for b.Loop() {
+		b.StopTimer()
+		buf.Reset()
 
-// 		object = newObject()
+		object = newObject()
 
-// 		if err := encoder.Encode(object); err != nil {
-// 			b.Log("Encode error: " + err.Error())
-// 			return
-// 		}
-// 		b.StartTimer()
+		if err := encoder.Encode(object); err != nil {
+			b.Log("Encode error: " + err.Error())
+			return
+		}
+		b.StartTimer()
 
-// 		if err := decoder.Decode(&object); err != nil {
-// 			b.Log("Decode error: " + err.Error())
-// 			return
-// 		}
-// 	}
-// }
+		if err := decoder.Decode(&object); err != nil {
+			b.Log("Decode error: " + err.Error())
+			return
+		}
+	}
+}
 
 func BenchmarkGocEncode(b *testing.B) {
 	buf := new(bytes.Buffer)
@@ -195,32 +195,35 @@ func BenchmarkGocEncode(b *testing.B) {
 	}
 }
 
-// func BenchmarkGocDecode(b *testing.B) {
-// 	b.Helper()
+func BenchmarkGocDecode(b *testing.B) {
+	b.Helper()
 
-// 	buf := new(bytes.Buffer)
+	buf := new(bytes.Buffer)
 
-// 	for b.Loop() {
-// 		b.StopTimer()
-// 		buf.Reset()
+	for b.Loop() {
+		b.StopTimer()
+		buf.Reset()
 
-// 		object = newObject()
+		object = newObject()
 
-// 		if err := goc.EncodeBuffer(buf, object); err != nil {
-// 			b.Log("EncodeTo error: " + err.Error())
-// 			return
-// 		}
-// 		b.StartTimer()
+		if err := goc.EncodeByteWrite(buf, object); err != nil {
+			b.Log("EncodeTo error: " + err.Error())
+			return
+		}
 
-// 		o, err := goc.DecodeFrom[Object](buf)
-// 		if err != nil {
-// 			b.Log("DecodeFrom error: " + err.Error())
-// 			return
-// 		}
+		r := bytes.NewReader(buf.Bytes())
 
-// 		object = o
-// 	}
-// }
+		var o Object
+		b.StartTimer()
+
+		if err := goc.DecodeByteRead(r, &o); err != nil {
+			b.Log("DecodeFrom error: " + err.Error())
+			return
+		}
+
+		object = o
+	}
+}
 
 func newObject() Object {
 	return Object{

@@ -1,6 +1,7 @@
 package goc
 
 import (
+	"bytes"
 	"encoding"
 	"encoding/binary"
 	"errors"
@@ -10,47 +11,303 @@ import (
 	"reflect"
 )
 
-func decodeConcrete[T any](r io.Reader) (T, error) {
-	var zero T
+func decodeReader[T any](in *bytes.Reader, out *T) error {
+	v := reflect.ValueOf(out)
+	return decodeValueWithInterfaces(in, v, v.Type())
+}
 
-	// TODO: avoid allocation
-	d := make([]byte, reflect.TypeFor[T]().Size())
+var (
+	reflectDecodeByteReader   = reflect.TypeFor[DecodeByteReader]()
+	reflectDecodeReader       = reflect.TypeFor[DecodeReader]()
+	reflectDecoder            = reflect.TypeFor[Decoder]()
+	reflectBinaryUnmarshaller = reflect.TypeFor[encoding.BinaryUnmarshaler]()
+)
 
-	n, err := r.Read(d)
-	if n == 0 && err != nil && !errors.Is(err, io.EOF) {
-		return zero, err
+func decodeValueWithInterfaces(r *bytes.Reader, v reflect.Value, t reflect.Type) error {
+	switch {
+	case t.Implements(reflectDecodeByteReader):
+		return v.Interface().(DecodeByteReader).DecodeByteRead(r)
+	case t.Implements(reflectDecodeReader):
+		return v.Interface().(DecodeReader).DecodeRead(r)
+	case t.Implements(reflectDecoder):
+		buf := bytesBufferPool.Get()
+		defer bytesBufferPool.Put(buf)
+
+		_, err := r.WriteTo(buf)
+		if err != nil {
+			return err
+		}
+
+		return v.Interface().(Decoder).Decode(buf.Bytes())
+	case t.Implements(reflectBinaryUnmarshaller):
+		buf := bytesBufferPool.Get()
+		defer bytesBufferPool.Put(buf)
+
+		_, err := r.WriteTo(buf)
+		if err != nil {
+			return err
+		}
+
+		return v.Interface().(encoding.BinaryUnmarshaler).UnmarshalBinary(buf.Bytes())
+	default:
+		return decodeValue(r, v, t)
+	}
+}
+
+func decodeValue(r *bytes.Reader, v reflect.Value, t reflect.Type) error {
+	if !v.IsValid() {
+		return ErrInvalidValue
 	}
 
-	// TODO: add int, uint, uintptr?
-	switch any(zero).(type) {
-	case bool:
-		return castGeneric[T](decodeBool(d[0]))
-	case int8:
-		return castGeneric[T](int8(d[0]))
-	case int16:
-		return castGeneric[T](decodeInt16(d))
-	case int32:
-		return castGeneric[T](decodeInt32(d))
-	case int64:
-		return castGeneric[T](decodeInt64(d))
-	case uint8:
-		return castGeneric[T](d[0])
-	case uint16:
-		return castGeneric[T](decodeUint16(d))
-	case uint32:
-		return castGeneric[T](decodeUint32(d))
-	case uint64:
-		return castGeneric[T](decodeUint64(d))
-	case float32:
-		return castGeneric[T](decodeFloat32(d))
-	case float64:
-		return castGeneric[T](decodeFloat64(d))
-	case complex64:
-		return castGeneric[T](decodeComplex64(d))
-	case complex128:
-		return castGeneric[T](decodeComplex128(d))
+	indirections, err := numIndirections(t)
+	if err != nil {
+		return err
+	}
+
+	for range indirections {
+		v = reflect.Indirect(v)
+	}
+
+	if indirections > 0 {
+		t = v.Type()
+	}
+
+	var data []byte
+
+	// Read concrete type.
+	switch t.Kind() {
+	case reflect.Bool,
+		reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		reflect.Float32, reflect.Float64,
+		reflect.Complex64, reflect.Complex128:
+		data = make([]byte, t.Size())
+
+		n, err := r.Read(data)
+		if n == 0 && err != nil && !errors.Is(err, io.EOF) {
+			return fmt.Errorf("reading %s: %w", t.String(), err)
+		}
+	}
+
+	switch v.Kind() {
+	case reflect.Bool:
+		v.SetBool(decodeBool(data[0]))
+		return nil
+	case reflect.Int:
+		header, err := r.ReadByte()
+		if err != nil {
+			return fmt.Errorf("reading int header: %w", err)
+		}
+
+		switch header {
+		case 4:
+			var d [4]byte
+
+			_, err := r.Read(d[:])
+			if err != nil && !errors.Is(err, io.EOF) {
+				return fmt.Errorf("reading %s: %w", t.String(), err)
+			}
+
+			v.SetInt(int64(decodeInt32(d[:])))
+			return nil
+		case 8:
+			var d [8]byte
+
+			_, err := r.Read(d[:])
+			if err != nil && !errors.Is(err, io.EOF) {
+				return fmt.Errorf("reading %s: %w", t.String(), err)
+			}
+
+			v.SetInt(decodeInt64(d[:]))
+			return nil
+		default:
+			return fmt.Errorf("unknown int size %d encountered", header)
+		}
+	case reflect.Int8:
+		v.SetInt(int64(int8(data[0])))
+		return nil
+	case reflect.Int16:
+		v.SetInt(int64(decodeInt16(data)))
+		return nil
+	case reflect.Int32:
+		v.SetInt(int64(decodeInt32(data)))
+		return nil
+	case reflect.Int64:
+		v.SetInt(decodeInt64(data))
+		return nil
+	case reflect.Uint, reflect.Uintptr:
+		header, err := r.ReadByte()
+		if err != nil {
+			return fmt.Errorf("reading %s header: %w", t.Kind(), err)
+		}
+
+		switch header {
+		case 4:
+			var d [4]byte
+
+			_, err := r.Read(d[:])
+			if err != nil && !errors.Is(err, io.EOF) {
+				return fmt.Errorf("reading %s: %w", t.String(), err)
+			}
+
+			v.SetUint(uint64(decodeUint32(d[:])))
+			return nil
+		case 8:
+			var d [8]byte
+
+			_, err := r.Read(d[:])
+			if err != nil && !errors.Is(err, io.EOF) {
+				return fmt.Errorf("reading %s: %w", t.String(), err)
+			}
+
+			v.SetUint(decodeUint64(d[:]))
+			return nil
+		default:
+			return fmt.Errorf("unknown %s size %d encountered", t.Kind(), header)
+		}
+	case reflect.Uint8:
+		v.SetUint(uint64(data[0]))
+		return nil
+	case reflect.Uint16:
+		v.SetUint(uint64(decodeUint16(data)))
+		return nil
+	case reflect.Uint32:
+		v.SetUint(uint64(decodeUint32(data)))
+		return nil
+	case reflect.Uint64:
+		v.SetUint(decodeUint64(data))
+		return nil
+	case reflect.Float32:
+		v.SetFloat(float64(decodeFloat32(data)))
+		return nil
+	case reflect.Float64:
+		v.SetFloat(decodeFloat64(data))
+		return nil
+	case reflect.Complex64:
+		v.SetComplex(complex128(decodeComplex64(data)))
+		return nil
+	case reflect.Complex128:
+		v.SetComplex(decodeComplex128(data))
+		return nil
+	case reflect.String:
+		var d [2]byte
+
+		_, err := r.Read(d[:])
+		if err != nil && !errors.Is(err, io.EOF) {
+			return fmt.Errorf("decoding string len: %w", err)
+		}
+
+		length := decodeUint16(d[:])
+
+		if length == 0 {
+			v.SetString("")
+			return nil
+		}
+
+		// TODO: sync.Pool
+		data = make([]byte, int(length))
+
+		n, err := r.Read(data)
+		if n == 0 && err != nil && !errors.Is(err, io.EOF) {
+			return fmt.Errorf("decoding string: %w", err)
+		}
+
+		// TODO: avoid allocation?
+		v.SetString(string(data))
+		return nil
+	case reflect.Struct:
+		for i := range v.NumField() {
+			f := v.Field(i)
+
+			if err := decodeValue(r, f, f.Type()); err != nil {
+				return fmt.Errorf("decoding struct field %d of type %s: %w", i, v.Field(i).Type().String(), err)
+			}
+		}
+
+		return nil
+	case reflect.Array, reflect.Slice:
+		var d [2]byte
+
+		_, err := r.Read(d[:])
+		if err != nil && !errors.Is(err, io.EOF) {
+			return fmt.Errorf("decoding %s len: %w", t.Kind(), err)
+		}
+
+		length16 := decodeUint16(d[:])
+
+		if length16 == 0 {
+			v.Set(reflect.MakeSlice(t, 0, 0))
+			return nil
+		}
+
+		length := int(length16)
+		elemType := t.Elem()
+
+		// Calculate number of indirection for slice's underlying type.
+		indirections, err := numIndirections(elemType)
+		if err != nil {
+			return err
+		}
+
+		// Indirect the underlying slice type.
+		for range indirections {
+			elemType = elemType.Elem()
+		}
+
+		// Allocate underlying slice.
+		if v.Kind() == reflect.Slice {
+			v.Set(reflect.MakeSlice(t, length, length))
+		}
+
+		// Decode slice with underlying type of variable size.
+		for i := range length {
+			elem := v.Index(i)
+
+			if err := decodeValue(r, elem, elemType); err != nil {
+				return fmt.Errorf("decoding %s index %d of type %s: %w", elem.Kind().String(), i, elemType.String(), err)
+			}
+		}
+
+		return nil
+	case reflect.Map:
+		var d [2]byte
+
+		_, err := r.Read(d[:])
+		if err != nil && !errors.Is(err, io.EOF) {
+			return fmt.Errorf("decoding map len: %w", err)
+		}
+
+		length16 := decodeUint16(d[:])
+
+		if length16 == 0 {
+			v.Set(reflect.MakeMap(t))
+			return nil
+		}
+
+		length := int(length16)
+
+		v.Set(reflect.MakeMapWithSize(t, length))
+
+		// TODO: optimize
+		for range length {
+			key := reflect.New(t.Key())
+
+			if err := decodeValue(r, key, key.Type()); err != nil {
+				return fmt.Errorf("decoding map key: %w", err)
+			}
+
+			value := reflect.New(t.Elem())
+
+			if err := decodeValue(r, value, value.Type()); err != nil {
+				return fmt.Errorf("decoding map value: %w", err)
+			}
+
+			v.SetMapIndex(key.Elem(), value.Elem())
+		}
+
+		return nil
 	default:
-		panic("decodeConcrete received a non-concrete type: " + reflect.TypeFor[T]().String())
+		return fmt.Errorf("decoding of type %s is not supported", t.String())
 	}
 }
 
@@ -63,6 +320,7 @@ func decodeInt16(b []byte) int16 {
 }
 
 func decodeUint16(b []byte) uint16 {
+	_ = b[1] // bounds check hint for compiler
 	return binary.LittleEndian.Uint16(b[:2])
 }
 
@@ -71,6 +329,7 @@ func decodeInt32(b []byte) int32 {
 }
 
 func decodeUint32(b []byte) uint32 {
+	_ = b[3] // bounds check hint for compiler
 	return binary.LittleEndian.Uint32(b[:4])
 }
 
@@ -79,6 +338,7 @@ func decodeInt64(b []byte) int64 {
 }
 
 func decodeUint64(b []byte) uint64 {
+	_ = b[7] // bounds check hint for compiler
 	return binary.LittleEndian.Uint64(b[:8])
 }
 
@@ -91,111 +351,15 @@ func decodeFloat64(b []byte) float64 {
 }
 
 func decodeComplex64(b []byte) complex64 {
+	_ = b[7] // bounds check hint for compiler
 	r := decodeFloat32(b[:4])
 	i := decodeFloat32(b[4:8])
 	return complex(r, i)
 }
 
 func decodeComplex128(b []byte) complex128 {
+	_ = b[15] // bounds check hint for compiler
 	r := decodeFloat64(b[:8])
 	i := decodeFloat64(b[8:16])
 	return complex(r, i)
-}
-
-func decodeDecodeReader[T any](r io.Reader, decoder DecodeReader) (T, error) {
-	if err := decoder.DecodeFrom(r); err != nil {
-		return *new(T), fmt.Errorf("DecodeFrom: %w", err)
-	}
-
-	decoded, ok := decoder.(T)
-	if !ok {
-		return *new(T), errors.New("unable to encode DecodeReader to concrete type")
-	}
-
-	return decoded, nil
-}
-
-func decodeDecoder[T any](r io.Reader, decoder Decoder) (T, error) {
-	b, err := io.ReadAll(r)
-	if err != nil {
-		return *new(T), fmt.Errorf("ReadAll: %w", err)
-	}
-
-	if err := decoder.Decode(b); err != nil {
-		return *new(T), fmt.Errorf("Decode: %w", err)
-	}
-
-	decoded, ok := decoder.(T)
-	if !ok {
-		return *new(T), errors.New("unable to encode Decoder to concrete type")
-	}
-
-	return decoded, nil
-}
-
-func decodeBinaryUnmarshaler[T any](r io.Reader, decoder encoding.BinaryUnmarshaler) (T, error) {
-	b, err := io.ReadAll(r)
-	if err != nil {
-		return *new(T), fmt.Errorf("ReadAll: %w", err)
-	}
-
-	if err := decoder.UnmarshalBinary(b); err != nil {
-		return *new(T), fmt.Errorf("UnmarshalBinary: %w", err)
-	}
-
-	decoded, ok := decoder.(T)
-	if !ok {
-		return *new(T), errors.New("unable to encode BinaryUnmarshaler to concrete type")
-	}
-
-	return decoded, nil
-}
-
-func decodeValueDecodeReader(r io.Reader, v reflect.Value) error {
-	decodeReader, ok := reflect.TypeAssert[DecodeReader](v)
-	if !ok {
-		return ErrTypeAssertion
-	}
-
-	if err := decodeReader.DecodeFrom(r); err != nil {
-		return fmt.Errorf("DecodeFrom: %w", err)
-	}
-
-	return nil
-}
-
-func decodeValueDecoder(r io.Reader, v reflect.Value) error {
-	b, err := io.ReadAll(r)
-	if err != nil {
-		return fmt.Errorf("ReadAll: %w", err)
-	}
-
-	decoder, ok := reflect.TypeAssert[Decoder](v)
-	if !ok {
-		return ErrTypeAssertion
-	}
-
-	if err := decoder.Decode(b); err != nil {
-		return fmt.Errorf("Decode: %w", err)
-	}
-
-	return nil
-}
-
-func decodeValueBinaryUnmarshaler(r io.Reader, v reflect.Value) error {
-	b, err := io.ReadAll(r)
-	if err != nil {
-		return fmt.Errorf("ReadAll: %w", err)
-	}
-
-	binaryUnmarshaler, ok := reflect.TypeAssert[encoding.BinaryUnmarshaler](v)
-	if !ok {
-		return ErrTypeAssertion
-	}
-
-	if err := binaryUnmarshaler.UnmarshalBinary(b); err != nil {
-		return fmt.Errorf("UnmarshalBinary: %w", err)
-	}
-
-	return nil
 }
