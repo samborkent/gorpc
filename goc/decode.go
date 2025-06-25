@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/bits"
 	"reflect"
 )
 
@@ -94,35 +95,21 @@ func decodeValue(r *bytes.Reader, v reflect.Value, t reflect.Type) error {
 		v.SetBool(decodeBool(data[0]))
 		return nil
 	case reflect.Int:
-		header, err := r.ReadByte()
-		if err != nil {
-			return fmt.Errorf("reading int header: %w", err)
+		var d [8]byte
+
+		_, err := r.Read(d[:])
+		if err != nil && !errors.Is(err, io.EOF) {
+			return fmt.Errorf("reading %s: %w", t.String(), err)
 		}
 
-		switch header {
-		case 4:
-			var d [4]byte
+		decoded := decodeInt64(d[:])
 
-			_, err := r.Read(d[:])
-			if err != nil && !errors.Is(err, io.EOF) {
-				return fmt.Errorf("reading %s: %w", t.String(), err)
-			}
-
-			v.SetInt(int64(decodeInt32(d[:])))
-			return nil
-		case 8:
-			var d [8]byte
-
-			_, err := r.Read(d[:])
-			if err != nil && !errors.Is(err, io.EOF) {
-				return fmt.Errorf("reading %s: %w", t.String(), err)
-			}
-
-			v.SetInt(decodeInt64(d[:]))
-			return nil
-		default:
-			return fmt.Errorf("unknown int size %d encountered", header)
+		if decoded < (-1<<(bits.UintSize-1)) || decoded > (1<<(bits.UintSize-1)-1) {
+			return ErrOverflowInt
 		}
+
+		v.SetInt(decoded)
+		return nil
 	case reflect.Int8:
 		v.SetInt(int64(int8(data[0])))
 		return nil
@@ -136,35 +123,21 @@ func decodeValue(r *bytes.Reader, v reflect.Value, t reflect.Type) error {
 		v.SetInt(decodeInt64(data))
 		return nil
 	case reflect.Uint, reflect.Uintptr:
-		header, err := r.ReadByte()
-		if err != nil {
-			return fmt.Errorf("reading %s header: %w", t.Kind(), err)
+		var d [8]byte
+
+		_, err := r.Read(d[:])
+		if err != nil && !errors.Is(err, io.EOF) {
+			return fmt.Errorf("reading %s: %w", t.String(), err)
 		}
 
-		switch header {
-		case 4:
-			var d [4]byte
+		decoded := decodeUint64(d[:])
 
-			_, err := r.Read(d[:])
-			if err != nil && !errors.Is(err, io.EOF) {
-				return fmt.Errorf("reading %s: %w", t.String(), err)
-			}
-
-			v.SetUint(uint64(decodeUint32(d[:])))
-			return nil
-		case 8:
-			var d [8]byte
-
-			_, err := r.Read(d[:])
-			if err != nil && !errors.Is(err, io.EOF) {
-				return fmt.Errorf("reading %s: %w", t.String(), err)
-			}
-
-			v.SetUint(decodeUint64(d[:]))
-			return nil
-		default:
-			return fmt.Errorf("unknown %s size %d encountered", t.Kind(), header)
+		if decoded > (1<<bits.UintSize - 1) {
+			return ErrOverflowUint
 		}
+
+		v.SetUint(decoded)
+		return nil
 	case reflect.Uint8:
 		v.SetUint(uint64(data[0]))
 		return nil
@@ -190,14 +163,14 @@ func decodeValue(r *bytes.Reader, v reflect.Value, t reflect.Type) error {
 		v.SetComplex(decodeComplex128(data))
 		return nil
 	case reflect.String:
-		var d [2]byte
+		var d [4]byte
 
 		_, err := r.Read(d[:])
 		if err != nil && !errors.Is(err, io.EOF) {
 			return fmt.Errorf("decoding string len: %w", err)
 		}
 
-		length := decodeUint16(d[:])
+		length := decodeUint32(d[:])
 
 		if length == 0 {
 			v.SetString("")
@@ -226,21 +199,21 @@ func decodeValue(r *bytes.Reader, v reflect.Value, t reflect.Type) error {
 
 		return nil
 	case reflect.Array, reflect.Slice:
-		var d [2]byte
+		var d [4]byte
 
 		_, err := r.Read(d[:])
 		if err != nil && !errors.Is(err, io.EOF) {
 			return fmt.Errorf("decoding %s len: %w", t.Kind(), err)
 		}
 
-		length16 := decodeUint16(d[:])
+		length32 := decodeUint32(d[:])
 
-		if length16 == 0 {
+		if length32 == 0 {
 			v.Set(reflect.MakeSlice(t, 0, 0))
 			return nil
 		}
 
-		length := int(length16)
+		length := int(length32)
 		elemType := t.Elem()
 
 		// Calculate number of indirection for slice's underlying type.
@@ -270,28 +243,27 @@ func decodeValue(r *bytes.Reader, v reflect.Value, t reflect.Type) error {
 
 		return nil
 	case reflect.Map:
-		var d [2]byte
+		var d [4]byte
 
 		_, err := r.Read(d[:])
 		if err != nil && !errors.Is(err, io.EOF) {
 			return fmt.Errorf("decoding map len: %w", err)
 		}
 
-		length16 := decodeUint16(d[:])
+		length32 := decodeUint32(d[:])
 
-		if length16 == 0 {
+		if length32 == 0 {
 			v.Set(reflect.MakeMap(t))
 			return nil
 		}
 
-		length := int(length16)
+		length := int(length32)
 
 		v.Set(reflect.MakeMapWithSize(t, length))
 
 		key := reflect.New(t.Key())
 		val := reflect.New(t.Elem())
 
-		// TODO: optimize
 		for range length {
 			keyElem := key.Elem()
 

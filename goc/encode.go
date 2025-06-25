@@ -77,20 +77,7 @@ func encodeValue(b *bytes.Buffer, v reflect.Value, t reflect.Type) error {
 
 		return nil
 	case reflect.Int:
-		switch t.Size() {
-		case 4:
-			var d [5]byte
-			d[0] = 4
-			copy(d[1:], encodeInt32(int32(v.Int())))
-			data = d[:]
-		case 8:
-			var d [9]byte
-			d[0] = 8
-			copy(d[1:], encodeInt64(v.Int()))
-			data = d[:]
-		default:
-			return fmt.Errorf("unknown int size %d encountered", t.Size())
-		}
+		data = encodeInt64(v.Int())
 	case reflect.Int8:
 		if err := b.WriteByte(byte(v.Int())); err != nil {
 			return fmt.Errorf("encoding %s: %w", t.String(), err)
@@ -104,20 +91,7 @@ func encodeValue(b *bytes.Buffer, v reflect.Value, t reflect.Type) error {
 	case reflect.Int64:
 		data = encodeInt64(v.Int())
 	case reflect.Uint, reflect.Uintptr:
-		switch t.Size() {
-		case 4:
-			var d [5]byte
-			d[0] = 4
-			copy(d[1:], encodeUint32(uint32(v.Uint())))
-			data = d[:]
-		case 8:
-			var d [9]byte
-			d[0] = 8
-			copy(d[1:], encodeUint64(v.Uint()))
-			data = d[:]
-		default:
-			return fmt.Errorf("unknown int size %d encountered", t.Size())
-		}
+		data = encodeUint64(v.Uint())
 	case reflect.Uint8:
 		if err := b.WriteByte(byte(v.Uint())); err != nil {
 			return fmt.Errorf("encoding %s: %w", t.String(), err)
@@ -141,8 +115,8 @@ func encodeValue(b *bytes.Buffer, v reflect.Value, t reflect.Type) error {
 	case reflect.String:
 		strLen := v.Len()
 
-		if strLen > math.MaxUint16 {
-			return fmt.Errorf("maximum string size of %d bytes exceeded", math.MaxUint16)
+		if strLen > math.MaxUint32 {
+			return fmt.Errorf("maximum string size of %d bytes exceeded", math.MaxUint32)
 		}
 
 		// Empty string.
@@ -151,7 +125,7 @@ func encodeValue(b *bytes.Buffer, v reflect.Value, t reflect.Type) error {
 			break
 		}
 
-		_, err := b.Write(encodeUint16(uint16(v.Len())))
+		_, err := b.Write(encodeUint32(uint32(v.Len())))
 		if err != nil {
 			return fmt.Errorf("encoding string len: %w", err)
 		}
@@ -175,8 +149,8 @@ func encodeValue(b *bytes.Buffer, v reflect.Value, t reflect.Type) error {
 	case reflect.Array, reflect.Slice:
 		sliceLen := v.Len()
 
-		if sliceLen > math.MaxUint16 {
-			return fmt.Errorf("maximum array/slice size of %d bytes exceeded", math.MaxUint16)
+		if sliceLen > math.MaxUint32 {
+			return fmt.Errorf("maximum array/slice size of %d bytes exceeded", math.MaxUint32)
 		}
 
 		// Empty slice.
@@ -185,7 +159,7 @@ func encodeValue(b *bytes.Buffer, v reflect.Value, t reflect.Type) error {
 			break
 		}
 
-		_, err = b.Write(encodeUint16(uint16(sliceLen)))
+		_, err = b.Write(encodeUint32(uint32(sliceLen)))
 		if err != nil {
 			return fmt.Errorf("encoding slice len: %w", err)
 		}
@@ -218,8 +192,8 @@ func encodeValue(b *bytes.Buffer, v reflect.Value, t reflect.Type) error {
 	case reflect.Map:
 		mapLen := v.Len()
 
-		if mapLen > math.MaxUint16 {
-			return fmt.Errorf("maximum map size of %d bytes exceeded", math.MaxUint16)
+		if mapLen > math.MaxUint32 {
+			return fmt.Errorf("maximum map size of %d bytes exceeded", math.MaxUint32)
 		}
 
 		// Empty map.
@@ -228,7 +202,7 @@ func encodeValue(b *bytes.Buffer, v reflect.Value, t reflect.Type) error {
 			break
 		}
 
-		_, err = b.Write(encodeUint16(uint16(mapLen)))
+		_, err = b.Write(encodeUint32(uint32(mapLen)))
 		if err != nil {
 			return fmt.Errorf("encoding map len: %w", err)
 		}
