@@ -12,9 +12,11 @@ import (
 	"reflect"
 )
 
-func decodeReader[T any](in *bytes.Reader, out *T) error {
+// TODO: implement unsafe decoding
+
+func decodeReader[T any](in *bytes.Reader, out *T, allowUnsafe bool) error {
 	v := reflect.ValueOf(out)
-	return decodeValueWithInterfaces(in, v, v.Type())
+	return decodeValueWithInterfaces(in, v, v.Type(), allowUnsafe)
 }
 
 var (
@@ -24,7 +26,7 @@ var (
 	reflectBinaryUnmarshaller = reflect.TypeFor[encoding.BinaryUnmarshaler]()
 )
 
-func decodeValueWithInterfaces(r *bytes.Reader, v reflect.Value, t reflect.Type) error {
+func decodeValueWithInterfaces(r *bytes.Reader, v reflect.Value, t reflect.Type, allowUnsafe bool) error {
 	switch {
 	case t.Implements(reflectDecodeByteReader):
 		return v.Interface().(DecodeByteReader).DecodeByteRead(r)
@@ -51,11 +53,11 @@ func decodeValueWithInterfaces(r *bytes.Reader, v reflect.Value, t reflect.Type)
 
 		return v.Interface().(encoding.BinaryUnmarshaler).UnmarshalBinary(buf.Bytes())
 	default:
-		return decodeValue(r, v, t)
+		return decodeValue(r, v, t, allowUnsafe)
 	}
 }
 
-func decodeValue(r *bytes.Reader, v reflect.Value, t reflect.Type) error {
+func decodeValue(r *bytes.Reader, v reflect.Value, t reflect.Type, allowUnsafe bool) error {
 	if !v.IsValid() {
 		return ErrInvalidValue
 	}
@@ -192,7 +194,7 @@ func decodeValue(r *bytes.Reader, v reflect.Value, t reflect.Type) error {
 		for i := range v.NumField() {
 			f := v.Field(i)
 
-			if err := decodeValue(r, f, f.Type()); err != nil {
+			if err := decodeValue(r, f, f.Type(), allowUnsafe); err != nil {
 				return fmt.Errorf("decoding struct field %d of type %s: %w", i, v.Field(i).Type().String(), err)
 			}
 		}
@@ -236,7 +238,7 @@ func decodeValue(r *bytes.Reader, v reflect.Value, t reflect.Type) error {
 		for i := range length {
 			elem := v.Index(i)
 
-			if err := decodeValue(r, elem, elemType); err != nil {
+			if err := decodeValue(r, elem, elemType, allowUnsafe); err != nil {
 				return fmt.Errorf("decoding %s index %d of type %s: %w", elem.Kind().String(), i, elemType.String(), err)
 			}
 		}
@@ -267,13 +269,13 @@ func decodeValue(r *bytes.Reader, v reflect.Value, t reflect.Type) error {
 		for range length {
 			keyElem := key.Elem()
 
-			if err := decodeValue(r, keyElem, keyElem.Type()); err != nil {
+			if err := decodeValue(r, keyElem, keyElem.Type(), allowUnsafe); err != nil {
 				return fmt.Errorf("decoding map key: %w", err)
 			}
 
 			valElem := val.Elem()
 
-			if err := decodeValue(r, valElem, valElem.Type()); err != nil {
+			if err := decodeValue(r, valElem, valElem.Type(), allowUnsafe); err != nil {
 				return fmt.Errorf("decoding map value: %w", err)
 			}
 

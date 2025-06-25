@@ -21,17 +21,27 @@ type DecodeByteReader interface {
 }
 
 // Decode goc-decodes a byte slice into an object.
-func Decode[T any](in []byte, out *T) error {
-	return decodeReader(bytes.NewReader(in), out)
+func Decode[T any](in []byte, out *T, options ...Option) error {
+	var cfg config
+	for _, option := range options {
+		option(&cfg)
+	}
+
+	return decodeReader(bytes.NewReader(in), out, cfg.allowUnsafe)
 }
 
 // DecodeRead reads from an [io.Reader] and goc-decodes into an object.
-func DecodeRead[T any](in io.Reader, out *T) error {
+func DecodeRead[T any](in io.Reader, out *T, options ...Option) error {
+	var cfg config
+	for _, option := range options {
+		option(&cfg)
+	}
+
 	switch t := in.(type) {
 	case *bytes.Reader:
-		return decodeReader(t, out)
+		return decodeReader(t, out, cfg.allowUnsafe)
 	case *bytes.Buffer:
-		return decodeReader(bytes.NewReader(t.Bytes()), out)
+		return decodeReader(bytes.NewReader(t.Bytes()), out, cfg.allowUnsafe)
 	default:
 		buf := decodingPool.Get()
 		defer decodingPool.Put(buf)
@@ -41,11 +51,16 @@ func DecodeRead[T any](in io.Reader, out *T) error {
 			return err
 		}
 
-		return decodeReader(bytes.NewReader(buf.Bytes()), out)
+		return decodeReader(bytes.NewReader(buf.Bytes()), out, cfg.allowUnsafe)
 	}
 }
 
 // DecodeByteRead reads from an [*bytes.Reader] and goc-decodes into an object.
-func DecodeByteRead[T any](in *bytes.Reader, out *T) error {
-	return decodeReader(in, out)
+func DecodeByteRead[T any](in *bytes.Reader, out *T, options ...Option) error {
+	var cfg config
+	for _, option := range options {
+		option(&cfg)
+	}
+
+	return decodeReader(in, out, cfg.allowUnsafe)
 }

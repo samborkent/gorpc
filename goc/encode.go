@@ -9,9 +9,11 @@ import (
 	"reflect"
 )
 
-func encodeBuffer[T any](out *bytes.Buffer, in T) error {
+// TODO: implement unsafe encoding
+
+func encodeBuffer[T any](out *bytes.Buffer, in T, allowUnsafe bool) error {
 	v := reflect.ValueOf(in)
-	return encodeValueWithInterfaces(out, v, v.Type())
+	return encodeValueWithInterfaces(out, v, v.Type(), allowUnsafe)
 }
 
 var (
@@ -21,7 +23,7 @@ var (
 	reflectBinaryMarshaller = reflect.TypeFor[encoding.BinaryMarshaler]()
 )
 
-func encodeValueWithInterfaces(b *bytes.Buffer, v reflect.Value, t reflect.Type) error {
+func encodeValueWithInterfaces(b *bytes.Buffer, v reflect.Value, t reflect.Type, allowUnsafe bool) error {
 	switch {
 	case t.Implements(reflectEncodeByteWriter):
 		return v.Interface().(EncodeByteWriter).EncodeBuffer(b)
@@ -45,11 +47,11 @@ func encodeValueWithInterfaces(b *bytes.Buffer, v reflect.Value, t reflect.Type)
 		_, err = b.Write(d)
 		return err
 	default:
-		return encodeValue(b, v, t)
+		return encodeValue(b, v, t, allowUnsafe)
 	}
 }
 
-func encodeValue(b *bytes.Buffer, v reflect.Value, t reflect.Type) error {
+func encodeValue(b *bytes.Buffer, v reflect.Value, t reflect.Type, allowUnsafe bool) error {
 	if !v.IsValid() {
 		return ErrInvalidValue
 	}
@@ -140,7 +142,7 @@ func encodeValue(b *bytes.Buffer, v reflect.Value, t reflect.Type) error {
 		for i := range v.NumField() {
 			f := v.Field(i)
 
-			if err := encodeValueWithInterfaces(b, f, f.Type()); err != nil {
+			if err := encodeValueWithInterfaces(b, f, f.Type(), allowUnsafe); err != nil {
 				return fmt.Errorf("encoding struct field %d of type %s: %w", i, f.Type().String(), err)
 			}
 		}
@@ -174,7 +176,7 @@ func encodeValue(b *bytes.Buffer, v reflect.Value, t reflect.Type) error {
 			for i := range v.Len() {
 				f := v.Index(i)
 
-				if err := encodeValueWithInterfaces(b, f, f.Type()); err != nil {
+				if err := encodeValueWithInterfaces(b, f, f.Type(), allowUnsafe); err != nil {
 					return fmt.Errorf("encoding %s index %d of type %s: %w", v.Kind().String(), i, f.Type().String(), err)
 				}
 			}
@@ -182,7 +184,7 @@ func encodeValue(b *bytes.Buffer, v reflect.Value, t reflect.Type) error {
 			for i := range v.Len() {
 				f := v.Index(i)
 
-				if err := encodeValue(b, f, f.Type()); err != nil {
+				if err := encodeValue(b, f, f.Type(), allowUnsafe); err != nil {
 					return fmt.Errorf("encoding %s index %d of type %s: %w", v.Kind().String(), i, f.Type().String(), err)
 				}
 			}
@@ -212,13 +214,13 @@ func encodeValue(b *bytes.Buffer, v reflect.Value, t reflect.Type) error {
 		for iter.Next() {
 			key := iter.Key()
 
-			if err := encodeValue(b, key, key.Type()); err != nil {
+			if err := encodeValue(b, key, key.Type(), allowUnsafe); err != nil {
 				return fmt.Errorf("encoding map key of type %s: %w", key.Type().String(), err)
 			}
 
 			val := iter.Value()
 
-			if err := encodeValue(b, val, val.Type()); err != nil {
+			if err := encodeValue(b, val, val.Type(), allowUnsafe); err != nil {
 				return fmt.Errorf("encoding map value of type %s: %w", val.Type().String(), err)
 			}
 		}

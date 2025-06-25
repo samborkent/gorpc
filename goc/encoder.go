@@ -21,11 +21,16 @@ type EncodeByteWriter interface {
 }
 
 // Encode goc-encodes an object and returns the encoded object.
-func Encode[T any](in T) (out []byte, err error) {
+func Encode[T any](in T, options ...Option) (out []byte, err error) {
+	var cfg config
+	for _, option := range options {
+		option(&cfg)
+	}
+
 	buf := encodingPool.Get()
 	defer encodingPool.Put(buf)
 
-	if err := encodeBuffer(buf, in); err != nil {
+	if err := encodeBuffer(buf, in, cfg.allowUnsafe); err != nil {
 		return nil, err
 	}
 
@@ -37,11 +42,16 @@ func Encode[T any](in T) (out []byte, err error) {
 }
 
 // EncodeWrite goc-encodes an object and writes it to [io.Writer].
-func EncodeWrite[T any](out io.Writer, in T) (n int, err error) {
+func EncodeWrite[T any](out io.Writer, in T, options ...Option) (n int, err error) {
+	var cfg config
+	for _, option := range options {
+		option(&cfg)
+	}
+
 	buf := encodingPool.Get()
 	defer encodingPool.Put(buf)
 
-	if err := encodeBuffer(buf, in); err != nil {
+	if err := encodeBuffer(buf, in, cfg.allowUnsafe); err != nil {
 		return 0, err
 	}
 
@@ -49,6 +59,11 @@ func EncodeWrite[T any](out io.Writer, in T) (n int, err error) {
 }
 
 // EncodeByteWrite goc-encodes an object and writes it to [*bytes.Buffer].
-func EncodeByteWrite[T any](out *bytes.Buffer, in T) error {
-	return encodeBuffer(out, in)
+func EncodeByteWrite[T any](out *bytes.Buffer, in T, options ...Option) error {
+	var cfg config
+	for _, option := range options {
+		option(&cfg)
+	}
+
+	return encodeBuffer(out, in, cfg.allowUnsafe)
 }
