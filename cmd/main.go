@@ -60,6 +60,12 @@ func main() {
 				panic(err.Error())
 			}
 
+			var out Object
+
+			if err := goc.DecodeByteRead(bytes.NewReader(buf.Bytes()), &out); err != nil {
+				panic(err.Error())
+			}
+
 			time.Sleep(time.Millisecond)
 		}
 	}

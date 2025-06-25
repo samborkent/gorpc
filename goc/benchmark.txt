@@ -71,3 +71,16 @@ json: 342
 json/v2: 341
 gob: 391
 goc: 276
+
+2025-06-25 18:44 Plugged-in
+After map decoding optimalisation
+MILESTONE: matched (and slightly beat) gob performance. While offering ~30% smaller encoding size.
+
+BenchmarkJSONV1Encode-16          443275              2612 ns/op             354 B/op          9 allocs/op
+BenchmarkJSONV1Decode-16          322006              3622 ns/op             514 B/op         16 allocs/op
+BenchmarkJSONV2Encode-16          444556              2406 ns/op             289 B/op          5 allocs/op
+BenchmarkJSONV2Decode-16          318750              3581 ns/op             771 B/op         18 allocs/op
+BenchmarkGobEncode-16             828504              1487 ns/op             192 B/op          9 allocs/op
+BenchmarkGobDecode-16             610227              1911 ns/op             760 B/op         15 allocs/op
+BenchmarkGocEncode-16             802135              1426 ns/op             192 B/op          9 allocs/op
+BenchmarkGocDecode-16             676856              1811 ns/op             696 B/op         15 allocs/op

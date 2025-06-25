@@ -288,21 +288,24 @@ func decodeValue(r *bytes.Reader, v reflect.Value, t reflect.Type) error {
 
 		v.Set(reflect.MakeMapWithSize(t, length))
 
+		key := reflect.New(t.Key())
+		val := reflect.New(t.Elem())
+
 		// TODO: optimize
 		for range length {
-			key := reflect.New(t.Key())
+			keyElem := key.Elem()
 
-			if err := decodeValue(r, key, key.Type()); err != nil {
+			if err := decodeValue(r, keyElem, keyElem.Type()); err != nil {
 				return fmt.Errorf("decoding map key: %w", err)
 			}
 
-			value := reflect.New(t.Elem())
+			valElem := val.Elem()
 
-			if err := decodeValue(r, value, value.Type()); err != nil {
+			if err := decodeValue(r, valElem, valElem.Type()); err != nil {
 				return fmt.Errorf("decoding map value: %w", err)
 			}
 
-			v.SetMapIndex(key.Elem(), value.Elem())
+			v.SetMapIndex(keyElem, valElem)
 		}
 
 		return nil

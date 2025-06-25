@@ -10,4 +10,6 @@ goc is a Go-only encoding method inspired by gob and Protobuf.
 
 # TODO
 
-* Fix encode/decode tests
+* Optimizations:
+    - Encode map as []key + []val, to more efficiently encode/decode values.
+* Implement unsafe support to enable super fast optimizations.
