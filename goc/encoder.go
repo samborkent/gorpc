@@ -22,8 +22,8 @@ type EncodeByteWriter interface {
 
 // Encode goc-encodes an object and returns the encoded object.
 func Encode[T any](in T) (out []byte, err error) {
-	buf := bytesBufferPool.Get()
-	defer bytesBufferPool.Put(buf)
+	buf := encodingPool.Get()
+	defer encodingPool.Put(buf)
 
 	if err := encodeBuffer(buf, in); err != nil {
 		return nil, err
@@ -38,8 +38,8 @@ func Encode[T any](in T) (out []byte, err error) {
 
 // EncodeWrite goc-encodes an object and writes it to [io.Writer].
 func EncodeWrite[T any](out io.Writer, in T) (n int, err error) {
-	buf := bytesBufferPool.Get()
-	defer bytesBufferPool.Put(buf)
+	buf := encodingPool.Get()
+	defer encodingPool.Put(buf)
 
 	if err := encodeBuffer(buf, in); err != nil {
 		return 0, err

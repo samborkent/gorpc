@@ -1,5 +1,8 @@
 package goc
 
-import "github.com/samborkent/gorpc/goc/internal/pool"
+import "github.com/samborkent/gorpc/internal/pool"
 
-var bytesBufferPool = pool.NewBytesBuffer()
+var (
+	encodingPool = pool.NewBytesBuffer()
+	decodingPool = pool.NewBytesBuffer()
+)

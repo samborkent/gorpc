@@ -23,13 +23,3 @@ func init() {
 
 	httpRoundTripper = http.RoundTripper(httpDefaultTransport)
 }
-
-type httpRoundTripperFunc func(*http.Request) (*http.Response, error)
-
-func (r httpRoundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
-	if r == nil {
-		return httpRoundTripper.RoundTrip(req)
-	}
-
-	return r(req)
-}

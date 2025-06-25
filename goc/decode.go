@@ -30,8 +30,8 @@ func decodeValueWithInterfaces(r *bytes.Reader, v reflect.Value, t reflect.Type)
 	case t.Implements(reflectDecodeReader):
 		return v.Interface().(DecodeReader).DecodeRead(r)
 	case t.Implements(reflectDecoder):
-		buf := bytesBufferPool.Get()
-		defer bytesBufferPool.Put(buf)
+		buf := decodingPool.Get()
+		defer decodingPool.Put(buf)
 
 		_, err := r.WriteTo(buf)
 		if err != nil {
@@ -40,8 +40,8 @@ func decodeValueWithInterfaces(r *bytes.Reader, v reflect.Value, t reflect.Type)
 
 		return v.Interface().(Decoder).Decode(buf.Bytes())
 	case t.Implements(reflectBinaryUnmarshaller):
-		buf := bytesBufferPool.Get()
-		defer bytesBufferPool.Put(buf)
+		buf := decodingPool.Get()
+		defer decodingPool.Put(buf)
 
 		_, err := r.WriteTo(buf)
 		if err != nil {

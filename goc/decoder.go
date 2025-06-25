@@ -33,8 +33,8 @@ func DecodeRead[T any](in io.Reader, out *T) error {
 	case *bytes.Buffer:
 		return decodeReader(bytes.NewReader(t.Bytes()), out)
 	default:
-		buf := bytesBufferPool.Get()
-		defer bytesBufferPool.Put(buf)
+		buf := decodingPool.Get()
+		defer decodingPool.Put(buf)
 
 		_, err := buf.ReadFrom(in)
 		if err != nil {
