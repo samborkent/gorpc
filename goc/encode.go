@@ -9,7 +9,10 @@ import (
 	"reflect"
 )
 
-// TODO: implement unsafe encoding
+// TODO: check if unsafe string encoding is actually any faster
+// TODO: implement unsafe slice encoding
+// TODO: optimize map encoding
+// TODO: unsafe map encoding
 
 func encodeBuffer[T any](out *bytes.Buffer, in T, allowUnsafe bool) error {
 	v := reflect.ValueOf(in)
@@ -73,13 +76,25 @@ func encodeValue(b *bytes.Buffer, v reflect.Value, t reflect.Type, allowUnsafe b
 
 	switch t.Kind() {
 	case reflect.Bool:
-		if err := b.WriteByte(encodeBool(v.Bool())); err != nil {
+		var d byte
+
+		if allowUnsafe {
+			d = unsafeEncodeBool(v.Bool())
+		} else {
+			d = encodeBool(v.Bool())
+		}
+
+		if err := b.WriteByte(d); err != nil {
 			return fmt.Errorf("encoding %s: %w", t.String(), err)
 		}
 
 		return nil
 	case reflect.Int:
-		data = encodeInt64(v.Int())
+		if allowUnsafe {
+			data = unsafeEncodeInt64(v.Int())
+		} else {
+			data = encodeInt64(v.Int())
+		}
 	case reflect.Int8:
 		if err := b.WriteByte(byte(v.Int())); err != nil {
 			return fmt.Errorf("encoding %s: %w", t.String(), err)
@@ -87,13 +102,29 @@ func encodeValue(b *bytes.Buffer, v reflect.Value, t reflect.Type, allowUnsafe b
 
 		return nil
 	case reflect.Int16:
-		data = encodeInt16(int16(v.Int()))
+		if allowUnsafe {
+			data = unsafeEncodeInt16(int16(v.Int()))
+		} else {
+			data = encodeInt16(int16(v.Int()))
+		}
 	case reflect.Int32:
-		data = encodeInt32(int32(v.Int()))
+		if allowUnsafe {
+			data = unsafeEncodeInt32(int32(v.Int()))
+		} else {
+			data = encodeInt32(int32(v.Int()))
+		}
 	case reflect.Int64:
-		data = encodeInt64(v.Int())
+		if allowUnsafe {
+			data = unsafeEncodeInt64(v.Int())
+		} else {
+			data = encodeInt64(v.Int())
+		}
 	case reflect.Uint, reflect.Uintptr:
-		data = encodeUint64(v.Uint())
+		if allowUnsafe {
+			data = unsafeEncodeUint64(v.Uint())
+		} else {
+			data = encodeUint64(v.Uint())
+		}
 	case reflect.Uint8:
 		if err := b.WriteByte(byte(v.Uint())); err != nil {
 			return fmt.Errorf("encoding %s: %w", t.String(), err)
@@ -101,19 +132,47 @@ func encodeValue(b *bytes.Buffer, v reflect.Value, t reflect.Type, allowUnsafe b
 
 		return nil
 	case reflect.Uint16:
-		data = encodeUint16(uint16(v.Uint()))
+		if allowUnsafe {
+			data = unsafeEncodeUint16(uint16(v.Uint()))
+		} else {
+			data = encodeUint16(uint16(v.Uint()))
+		}
 	case reflect.Uint32:
-		data = encodeUint32(uint32(v.Uint()))
+		if allowUnsafe {
+			data = unsafeEncodeUint32(uint32(v.Uint()))
+		} else {
+			data = encodeUint32(uint32(v.Uint()))
+		}
 	case reflect.Uint64:
-		data = encodeUint64(v.Uint())
+		if allowUnsafe {
+			data = unsafeEncodeUint64(v.Uint())
+		} else {
+			data = encodeUint64(v.Uint())
+		}
 	case reflect.Float32:
-		data = encodeFloat32(float32(v.Float()))
+		if allowUnsafe {
+			data = unsafeEncodeFloat32(float32(v.Float()))
+		} else {
+			data = encodeFloat32(float32(v.Float()))
+		}
 	case reflect.Float64:
-		data = encodeFloat64(v.Float())
+		if allowUnsafe {
+			data = unsafeEncodeFloat64(v.Float())
+		} else {
+			data = encodeFloat64(v.Float())
+		}
 	case reflect.Complex64:
-		data = encodeComplex64(complex64(v.Complex()))
+		if allowUnsafe {
+			data = unsafeEncodeComplex64(complex64(v.Complex()))
+		} else {
+			data = encodeComplex64(complex64(v.Complex()))
+		}
 	case reflect.Complex128:
-		data = encodeComplex128(v.Complex())
+		if allowUnsafe {
+			data = unsafeEncodeComplex128(v.Complex())
+		} else {
+			data = encodeComplex128(v.Complex())
+		}
 	case reflect.String:
 		strLen := v.Len()
 
@@ -127,14 +186,26 @@ func encodeValue(b *bytes.Buffer, v reflect.Value, t reflect.Type, allowUnsafe b
 			break
 		}
 
-		_, err := b.Write(encodeUint32(uint32(v.Len())))
-		if err != nil {
-			return fmt.Errorf("encoding string len: %w", err)
-		}
+		if allowUnsafe {
+			_, err := b.Write(unsafeEncodeUint32(uint32(v.Len())))
+			if err != nil {
+				return fmt.Errorf("encoding string len: %w", err)
+			}
 
-		_, err = b.WriteString(v.String())
-		if err != nil {
-			return fmt.Errorf("encoding string: %w", err)
+			_, err = b.Write(unsafeEncodeString(v.String()))
+			if err != nil {
+				return fmt.Errorf("encoding string: %w", err)
+			}
+		} else {
+			_, err := b.Write(encodeUint32(uint32(v.Len())))
+			if err != nil {
+				return fmt.Errorf("encoding string len: %w", err)
+			}
+
+			_, err = b.WriteString(v.String())
+			if err != nil {
+				return fmt.Errorf("encoding string: %w", err)
+			}
 		}
 
 		return nil
@@ -156,7 +227,7 @@ func encodeValue(b *bytes.Buffer, v reflect.Value, t reflect.Type, allowUnsafe b
 		}
 
 		// Empty slice.
-		if v.Len() == 0 {
+		if sliceLen == 0 {
 			data = []byte{0, 0}
 			break
 		}
@@ -173,7 +244,7 @@ func encodeValue(b *bytes.Buffer, v reflect.Value, t reflect.Type, allowUnsafe b
 			elemType.Implements(reflectEncodeWriter) ||
 			elemType.Implements(reflectEncoder) ||
 			elemType.Implements(reflectBinaryMarshaller) {
-			for i := range v.Len() {
+			for i := range sliceLen {
 				f := v.Index(i)
 
 				if err := encodeValueWithInterfaces(b, f, f.Type(), allowUnsafe); err != nil {
@@ -181,7 +252,7 @@ func encodeValue(b *bytes.Buffer, v reflect.Value, t reflect.Type, allowUnsafe b
 				}
 			}
 		} else {
-			for i := range v.Len() {
+			for i := range sliceLen {
 				f := v.Index(i)
 
 				if err := encodeValue(b, f, f.Type(), allowUnsafe); err != nil {
@@ -199,7 +270,7 @@ func encodeValue(b *bytes.Buffer, v reflect.Value, t reflect.Type, allowUnsafe b
 		}
 
 		// Empty map.
-		if v.Len() == 0 {
+		if mapLen == 0 {
 			data = []byte{0, 0}
 			break
 		}

@@ -225,6 +225,23 @@ func BenchmarkGocDecode(b *testing.B) {
 	}
 }
 
+func BenchmarkGocEncodeUnsafe(b *testing.B) {
+	buf := new(bytes.Buffer)
+
+	for b.Loop() {
+		b.StopTimer()
+		buf.Reset()
+
+		object = newObject()
+		b.StartTimer()
+
+		if err := goc.EncodeByteWrite(buf, object, goc.WithUnsafe()); err != nil {
+			b.Log("error: " + err.Error())
+			return
+		}
+	}
+}
+
 func newObject() Object {
 	return Object{
 		Num: mathrand.Uint64(),
