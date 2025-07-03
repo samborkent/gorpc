@@ -14,15 +14,16 @@ import (
 )
 
 type Client[Request, Response any] struct {
+	cache                   isync.Map[uint64, weak.Pointer[Response]]
 	client                  *http.Client
 	addr, hash              string
-	cache                   isync.Map[uint64, weak.Pointer[Response]]
+	method                  Method
 	seed                    maphash.Seed
 	cacheResponse, validate bool
 }
 
 func NewClient[Request, Response any](addr string, options ...ClientOption) (*Client[Request, Response], error) {
-	cfg := clientConfig{}
+	cfg := defaultClientConfig
 	for _, option := range options {
 		if err := option(&cfg); err != nil {
 			return nil, err
@@ -46,6 +47,7 @@ func NewClient[Request, Response any](addr string, options ...ClientOption) (*Cl
 		addr:          strings.TrimRight(addr, "/") + "/" + hash,
 		hash:          hash,
 		seed:          maphash.MakeSeed(),
+		method:        cfg.method,
 		cacheResponse: cfg.cacheResponse,
 		validate:      cfg.validate,
 	}, nil
@@ -87,7 +89,7 @@ func (c *Client[Request, Response]) do(ctx context.Context, req *Request) (*Resp
 		}
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.addr, bytes.NewReader(data))
+	httpReq, err := http.NewRequestWithContext(ctx, string(c.method), c.addr, bytes.NewReader(data))
 	if err != nil {
 		return nil, fmt.Errorf("initializing request: %w", err)
 	}

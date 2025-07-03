@@ -15,8 +15,8 @@ import (
 type Server struct {
 	mux                     *http.ServeMux
 	server                  *http.Server
-	running                 atomic.Bool
 	port                    int
+	running                 atomic.Bool
 	cacheResponse, validate bool
 }
 
@@ -60,16 +60,21 @@ func NewServer(port int, options ...ServerOption) (*Server, error) {
 }
 
 // Register registers a [HandlerFunc] to a goRPC [Server]. Panics when the server is already running.
-func Register[Request, Response any](s *Server, h HandlerFunc[Request, Response]) {
+func Register[Request, Response any](s *Server, h HandlerFunc[Request, Response], options ...RegisterOption) {
 	if s.running.Load() {
 		panic("goRPC: cannot register a new handler for a running server")
+	}
+
+	cfg := defaultRegisterConfig
+	for _, option := range options {
+		option(&cfg)
 	}
 
 	if s.validate {
 		h = ValidationMiddleware(h)
 	}
 
-	s.mux.Handle("POST /"+h.Hash(), handler(h, s.cacheResponse))
+	s.mux.Handle(string(cfg.method)+" /"+h.Hash(), handler(h, s.cacheResponse))
 }
 
 // Addr returns the server address.

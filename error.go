@@ -3,8 +3,8 @@ package gorpc
 import "strconv"
 
 type Error struct {
-	Code int
 	Text string
+	Code int
 }
 
 func (e *Error) Error() string {
