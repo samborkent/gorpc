@@ -1,16 +1,18 @@
 package gorpc
 
 import (
+	"bytes"
 	"context"
+	"encoding/gob"
 	"errors"
 	"hash/maphash"
 	"io"
 	"net/http"
-	"sync"
 	"unique"
 	"weak"
 
 	"github.com/samborkent/gorpc/goc"
+	isync "github.com/samborkent/gorpc/internal/sync"
 )
 
 // HandlerFunc is a generic function which takes any request and returns any response.
@@ -32,39 +34,40 @@ const (
 	httpErrResponse            = "Error encoding or writing response"
 )
 
-func handler[Request, Response any](h HandlerFunc[Request, Response], cacheResponse bool) http.HandlerFunc {
+func handler[Request, Response any](h HandlerFunc[Request, Response], cfg handlerConfig) http.HandlerFunc {
 	hsh := h.Hash()
 	hshHandle := unique.Make(hsh)
 
-	var seed maphash.Seed
-	// TODO: use sync.Map?
-	var cache map[uint64]weak.Pointer[Response]
-	var cacheLock *sync.RWMutex
-
-	if cacheResponse {
-		seed = maphash.MakeSeed()
-		cache = make(map[uint64]weak.Pointer[Response], 1)
-		cacheLock = new(sync.RWMutex)
-	}
+	seed := maphash.MakeSeed()
+	var cache isync.Map[uint64, weak.Pointer[Response]]
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Only POST requests are supported.
-		if r.Method != http.MethodPost {
-			http.Error(w, httpErrInvalidMethod, http.StatusMethodNotAllowed)
-			return
-		}
+		if cfg.useGob {
+			// Only requests with MIME type application/gob are supported.
+			contentType := r.Header.Get(HeaderContentType)
+			if contentType != MIMETypeGob {
+				http.Error(w, httpErrInvalidContentType, http.StatusUnsupportedMediaType)
+				return
+			}
 
-		// Only requests with MIME type application/goc are supported.
-		contentType := r.Header.Get(HeaderContentType)
-		if contentType != MIMEType {
-			http.Error(w, httpErrInvalidContentType, http.StatusUnsupportedMediaType)
-			return
-		}
+			acceptType := r.Header.Get(HeaderAccept)
+			if acceptType != MIMETypeGob {
+				http.Error(w, httpErrInvalidAcceptHeader, http.StatusNotAcceptable)
+				return
+			}
+		} else {
+			// Only requests with MIME type application/goc are supported.
+			contentType := r.Header.Get(HeaderContentType)
+			if contentType != MIMETypeGoc {
+				http.Error(w, httpErrInvalidContentType, http.StatusUnsupportedMediaType)
+				return
+			}
 
-		acceptType := r.Header.Get(HeaderAccept)
-		if acceptType != MIMEType {
-			http.Error(w, httpErrInvalidAcceptHeader, http.StatusNotAcceptable)
-			return
+			acceptType := r.Header.Get(HeaderAccept)
+			if acceptType != MIMETypeGoc {
+				http.Error(w, httpErrInvalidAcceptHeader, http.StatusNotAcceptable)
+				return
+			}
 		}
 
 		header := r.Header.Get(HeaderMethodHash)
@@ -88,7 +91,7 @@ func handler[Request, Response any](h HandlerFunc[Request, Response], cacheRespo
 		)
 
 		// Decode request.
-		if cacheResponse {
+		if cfg.cacheResponse {
 			// TODO: read until content length
 			body, err := io.ReadAll(r.Body)
 			_ = r.Body.Close()
@@ -100,19 +103,29 @@ func handler[Request, Response any](h HandlerFunc[Request, Response], cacheRespo
 
 			payloadHash = maphash.Bytes(seed, body)
 
-			cacheLock.RLock()
-			res, ok := cache[payloadHash]
-			cacheLock.RUnlock()
-
+			res, ok := cache.Load(payloadHash)
 			if ok && res.Value() != nil {
-				if err = goc.Decode(body, &req); err != nil {
+				// TODO: move to separate handler
+				if cfg.useGob {
+					err = gob.NewDecoder(bytes.NewReader(body)).Decode(&req)
+				} else {
+					err = goc.Decode(body, &req)
+				}
+
+				if err != nil {
 					http.Error(w, httpErrRequest, http.StatusBadRequest)
 					return
 				}
 			}
 		} else {
-			err := goc.DecodeRead(r.Body, &req)
+			if cfg.useGob {
+				err = gob.NewDecoder(r.Body).Decode(&req)
+			} else {
+				err = goc.DecodeRead(r.Body, &req)
+			}
+
 			_ = r.Body.Close()
+
 			if err != nil {
 				http.Error(w, httpErrRequest, http.StatusBadRequest)
 				return
@@ -134,29 +147,47 @@ func handler[Request, Response any](h HandlerFunc[Request, Response], cacheRespo
 			return
 		}
 
-		w.Header().Set(HeaderContentType, MIMEType)
+		if cfg.useGob {
+			w.Header().Set(HeaderContentType, MIMETypeGob)
+		} else {
+			w.Header().Set(HeaderContentType, MIMETypeGoc)
+		}
+
 		w.Header().Set(HeaderXContentTypeOptions, nosniff)
 		w.Header().Set(HeaderMethodHash, hsh)
 
 		// Encode and return response.
-		if cacheResponse && payloadHash > 0 {
-			payload, err := goc.Encode(res)
-			if err != nil {
-				http.Error(w, httpErrResponse, http.StatusInternalServerError)
-				return
+		if cfg.cacheResponse && payloadHash > 0 {
+			if cfg.useGob {
+				if err := gob.NewEncoder(w).Encode(res); err != nil {
+					http.Error(w, httpErrResponse, http.StatusInternalServerError)
+					return
+				}
+			} else {
+				payload, err := goc.Encode(res)
+				if err != nil {
+					http.Error(w, httpErrResponse, http.StatusInternalServerError)
+					return
+				}
+
+				_, err = w.Write(payload)
+				if err != nil {
+					// TODO: send to optional logger
+				}
 			}
 
-			cacheLock.Lock()
 			// TODO: does it even make sense to use weak pointer cache for server?
-			cache[payloadHash] = weak.Make(res)
-			cacheLock.Unlock()
-
-			_, _ = w.Write(payload)
+			cache.Store(payloadHash, weak.Make(res))
 		} else {
 			// TODO: define constants
 			w.Header().Set("Cache-Control", "no-store")
 
-			_, err := goc.EncodeWrite(w, res)
+			if cfg.useGob {
+				err = gob.NewEncoder(w).Encode(res)
+			} else {
+				_, err = goc.EncodeWrite(w, res)
+			}
+
 			if err != nil {
 				http.Error(w, httpErrResponse, http.StatusInternalServerError)
 				return
@@ -165,4 +196,9 @@ func handler[Request, Response any](h HandlerFunc[Request, Response], cacheRespo
 
 		w.WriteHeader(http.StatusOK)
 	}
+}
+
+type handlerConfig struct {
+	cacheResponse bool
+	useGob        bool
 }

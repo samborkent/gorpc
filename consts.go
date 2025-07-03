@@ -1,12 +1,13 @@
 package gorpc
 
 const (
-	HeaderAccept = "Accept"
-	HeaderContentType = "Content-Type"
+	HeaderAccept              = "Accept"
+	HeaderContentType         = "Content-Type"
 	HeaderXContentTypeOptions = "X-Content-Type-Options"
-	HeaderMethodHash  = "X-Method-Hash"
+	HeaderMethodHash          = "X-Method-Hash"
 
-	MIMEType = "application/goc"
+	MIMETypeGob = "application/gob"
+	MIMETypeGoc = "application/goc"
 
 	nosniff = "nosniff"
 )

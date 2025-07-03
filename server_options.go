@@ -15,6 +15,35 @@ var (
 // TODO: WithHTTPHandler/WithHTTPMiddleware
 // TODO: WithMiddleware (goRPC)
 
+// WithServerCache enables a weak response cache for the goRPC client.
+func WithServerCache() ServerOption {
+	return func(cfg *serverConfig) error {
+		if cfg.withCache {
+			return ErrOptionDuplicate
+		}
+
+		cfg.cacheResponse = true
+		cfg.withCache = true
+
+		return nil
+	}
+}
+
+// WithGobServer enables gob encoding instead of goc encoding for the server.
+func WithGobServer() ServerOption {
+	return func(cfg *serverConfig) error {
+		if cfg.withGob {
+			return ErrOptionDuplicate
+		}
+
+		cfg.gob = true
+		cfg.withGob = true
+
+		return nil
+	}
+}
+
+// WithHTTPServer overwrites the internal HTTP server.
 func WithHTTPServer(server *http.Server) ServerOption {
 	return func(cfg *serverConfig) error {
 		if cfg.withHTTPServer {
@@ -34,6 +63,7 @@ func WithHTTPServer(server *http.Server) ServerOption {
 	}
 }
 
+// WithServerValidation enables server request validation.
 func WithServerValidation() ServerOption {
 	return func(cfg *serverConfig) error {
 		if cfg.withValidation {
@@ -48,9 +78,15 @@ func WithServerValidation() ServerOption {
 }
 
 type serverConfig struct {
-	validate       bool
-	withValidation bool
+	cacheResponse bool
+	withCache     bool
+
+	gob     bool
+	withGob bool
 
 	server         *http.Server
 	withHTTPServer bool
+
+	validate       bool
+	withValidation bool
 }

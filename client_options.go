@@ -9,8 +9,8 @@ type ClientOption func(*clientConfig) error
 
 var ErrClientNil = errors.New("WithHTTPClient: client nil-pointer")
 
-// WithCache enables a weak response cache for the goRPC client.
-func WithCache() ClientOption {
+// WithClientCache enables a weak response cache for the goRPC client.
+func WithClientCache() ClientOption {
 	return func(cfg *clientConfig) error {
 		if cfg.withCache {
 			return ErrOptionDuplicate
@@ -32,6 +32,20 @@ func WithClientValidation() ClientOption {
 
 		cfg.validate = true
 		cfg.withValidation = true
+
+		return nil
+	}
+}
+
+// WithGobClient enables gob encoding instead of goc encoding for the client.
+func WithGobClient() ClientOption {
+	return func(cfg *clientConfig) error {
+		if cfg.withGob {
+			return ErrOptionDuplicate
+		}
+
+		cfg.gob = true
+		cfg.withGob = true
 
 		return nil
 	}
@@ -75,6 +89,9 @@ type clientConfig struct {
 
 	client         *http.Client
 	withHTTPClient bool
+
+	gob     bool
+	withGob bool
 
 	method           Method
 	witClienthMethod bool

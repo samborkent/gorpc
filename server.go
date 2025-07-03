@@ -13,11 +13,11 @@ import (
 
 // Server implements a goRPC server.
 type Server struct {
-	mux                     *http.ServeMux
-	server                  *http.Server
-	port                    int
-	running                 atomic.Bool
-	cacheResponse, validate bool
+	mux                             *http.ServeMux
+	server                          *http.Server
+	port                            int
+	running                         atomic.Bool
+	cacheResponse, useGob, validate bool
 }
 
 const (
@@ -54,7 +54,8 @@ func NewServer(port int, options ...ServerOption) (*Server, error) {
 		mux:           http.NewServeMux(),
 		server:        server,
 		port:          port,
-		cacheResponse: cfg.validate,
+		cacheResponse: cfg.cacheResponse,
+		useGob:        cfg.gob,
 		validate:      cfg.validate,
 	}, nil
 }
@@ -74,7 +75,12 @@ func Register[Request, Response any](s *Server, h HandlerFunc[Request, Response]
 		h = ValidationMiddleware(h)
 	}
 
-	s.mux.Handle(string(cfg.method)+" /"+h.Hash(), handler(h, s.cacheResponse))
+	hc := handlerConfig{
+		cacheResponse: s.cacheResponse,
+		useGob:        s.useGob,
+	}
+
+	s.mux.Handle(string(cfg.method)+" /"+h.Hash(), handler(h, hc))
 }
 
 // Addr returns the server address.

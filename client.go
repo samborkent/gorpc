@@ -3,23 +3,28 @@ package gorpc
 import (
 	"bytes"
 	"context"
+	"encoding/gob"
 	"fmt"
 	"hash/maphash"
+	"io"
 	"net/http"
 	"strings"
 	"weak"
 
 	"github.com/samborkent/gorpc/goc"
+	"github.com/samborkent/gorpc/internal/pool"
 	isync "github.com/samborkent/gorpc/internal/sync"
 )
 
+var clientPool = pool.NewBytesBuffer()
+
 type Client[Request, Response any] struct {
-	cache                   isync.Map[uint64, weak.Pointer[Response]]
-	client                  *http.Client
-	addr, hash              string
-	method                  Method
-	seed                    maphash.Seed
-	cacheResponse, validate bool
+	cache                           isync.Map[uint64, weak.Pointer[Response]]
+	client                          *http.Client
+	addr, hash                      string
+	method                          Method
+	seed                            maphash.Seed
+	cacheResponse, useGob, validate bool
 }
 
 func NewClient[Request, Response any](addr string, options ...ClientOption) (*Client[Request, Response], error) {
@@ -49,6 +54,7 @@ func NewClient[Request, Response any](addr string, options ...ClientOption) (*Cl
 		seed:          maphash.MakeSeed(),
 		method:        cfg.method,
 		cacheResponse: cfg.cacheResponse,
+		useGob:        cfg.gob,
 		validate:      cfg.validate,
 	}, nil
 }
@@ -66,10 +72,30 @@ func (c *Client[Request, Response]) Do(ctx context.Context, req *Request) (*Resp
 }
 
 func (c *Client[Request, Response]) do(ctx context.Context, req *Request) (*Response, error) {
-	// TODO: use []byte pool
-	data, err := goc.Encode(req)
-	if err != nil {
-		return nil, fmt.Errorf("encoding request: %w", err)
+	var (
+		body io.Reader
+		data []byte
+		err  error
+	)
+
+	if c.useGob {
+		buf := clientPool.Get()
+		defer clientPool.Put(buf)
+
+		if err := gob.NewEncoder(buf).Encode(req); err != nil {
+			return nil, fmt.Errorf("encoding request: %w", err)
+		}
+
+		body = buf
+		data = buf.Bytes()
+	} else {
+		// TODO: use []byte pool
+		data, err = goc.Encode(req)
+		if err != nil {
+			return nil, fmt.Errorf("encoding request: %w", err)
+		}
+
+		body = bytes.NewReader(data)
 	}
 
 	var (
@@ -89,13 +115,19 @@ func (c *Client[Request, Response]) do(ctx context.Context, req *Request) (*Resp
 		}
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, string(c.method), c.addr, bytes.NewReader(data))
+	httpReq, err := http.NewRequestWithContext(ctx, string(c.method), c.addr, body)
 	if err != nil {
 		return nil, fmt.Errorf("initializing request: %w", err)
 	}
 
-	httpReq.Header.Add(HeaderAccept, MIMEType)
-	httpReq.Header.Add(HeaderContentType, MIMEType)
+	if c.useGob {
+		httpReq.Header.Add(HeaderAccept, MIMETypeGob)
+		httpReq.Header.Add(HeaderContentType, MIMETypeGob)
+	} else {
+		httpReq.Header.Add(HeaderAccept, MIMETypeGoc)
+		httpReq.Header.Add(HeaderContentType, MIMETypeGoc)
+	}
+
 	httpReq.Header.Add(HeaderMethodHash, c.hash)
 	httpReq.ContentLength = int64(len(data))
 
@@ -110,8 +142,14 @@ func (c *Client[Request, Response]) do(ctx context.Context, req *Request) (*Resp
 
 	var res Response
 
-	err = goc.DecodeRead(httpRes.Body, &res)
+	if c.useGob {
+		err = gob.NewDecoder(httpRes.Body).Decode(&res)
+	} else {
+		err = goc.DecodeRead(httpRes.Body, &res)
+	}
+
 	_ = httpRes.Body.Close()
+
 	if err != nil {
 		return nil, fmt.Errorf("decoding response: %w", err)
 	}
