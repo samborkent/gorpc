@@ -1,7 +1,9 @@
 package goc
 
 import (
+	"bytes"
 	cryptorand "crypto/rand"
+	"fmt"
 	"math"
 	"math/rand/v2"
 	"testing"
@@ -376,6 +378,46 @@ func TestEncodeDecode(t *testing.T) {
 			if g != w {
 				t.Errorf("key %d: got %+v, want %+v", k, g, w)
 			}
+		}
+	})
+	t.Run("error", func(t *testing.T) {
+		t.Parallel()
+
+		want := fmt.Errorf("%s", cryptorand.Text())
+
+		d, err := Encode(want)
+		if err != nil {
+			t.Fatalf("Encode: %s", err.Error())
+		}
+
+		var got error
+
+		if err := Decode(d, &got); err != nil {
+			t.Fatalf("Decode: %s", err.Error())
+		}
+
+		if got.Error() != want.Error() {
+			t.Errorf("errors: got %s, want %s", got.Error(), want.Error())
+		}
+	})
+	t.Run("fmt.Stringer", func(t *testing.T) {
+		t.Parallel()
+
+		want := fmt.Stringer(bytes.NewBufferString(cryptorand.Text()))
+
+		d, err := Encode(want)
+		if err != nil {
+			t.Fatalf("Encode: %s", err.Error())
+		}
+
+		var got fmt.Stringer
+
+		if err := Decode(d, &got); err != nil {
+			t.Fatalf("Decode: %s", err.Error())
+		}
+
+		if got.String() != want.String() {
+			t.Errorf("fmt.Stringer: got %s, want %s", got.String(), want.String())
 		}
 	})
 }

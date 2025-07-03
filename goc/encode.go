@@ -16,42 +16,7 @@ import (
 
 func encodeBuffer[T any](out *bytes.Buffer, in T, allowUnsafe bool) error {
 	v := reflect.ValueOf(in)
-	return encodeValueWithInterfaces(out, v, v.Type(), allowUnsafe)
-}
-
-var (
-	reflectEncodeByteWriter = reflect.TypeFor[EncodeByteWriter]()
-	reflectEncodeWriter     = reflect.TypeFor[EncodeWriter]()
-	reflectEncoder          = reflect.TypeFor[Encoder]()
-	reflectBinaryMarshaller = reflect.TypeFor[encoding.BinaryMarshaler]()
-)
-
-func encodeValueWithInterfaces(b *bytes.Buffer, v reflect.Value, t reflect.Type, allowUnsafe bool) error {
-	switch {
-	case t.Implements(reflectEncodeByteWriter):
-		return v.Interface().(EncodeByteWriter).EncodeBuffer(b)
-	case t.Implements(reflectEncodeWriter):
-		_, err := v.Interface().(EncodeWriter).EncodeWrite(b)
-		return err
-	case t.Implements(reflectEncoder):
-		d, err := v.Interface().(Encoder).Encode()
-		if err != nil {
-			return err
-		}
-
-		_, err = b.Write(d)
-		return err
-	case t.Implements(reflectBinaryMarshaller):
-		d, err := v.Interface().(encoding.BinaryMarshaler).MarshalBinary()
-		if err != nil {
-			return err
-		}
-
-		_, err = b.Write(d)
-		return err
-	default:
-		return encodeValue(b, v, t, allowUnsafe)
-	}
+	return encodeValue(out, v, v.Type(), allowUnsafe)
 }
 
 func encodeValue(b *bytes.Buffer, v reflect.Value, t reflect.Type, allowUnsafe bool) error {
@@ -213,7 +178,7 @@ func encodeValue(b *bytes.Buffer, v reflect.Value, t reflect.Type, allowUnsafe b
 		for i := range v.NumField() {
 			f := v.Field(i)
 
-			if err := encodeValueWithInterfaces(b, f, f.Type(), allowUnsafe); err != nil {
+			if err := encodeValue(b, f, f.Type(), allowUnsafe); err != nil {
 				return fmt.Errorf("encoding struct field %d of type %s: %w", i, f.Type().String(), err)
 			}
 		}
@@ -237,27 +202,12 @@ func encodeValue(b *bytes.Buffer, v reflect.Value, t reflect.Type, allowUnsafe b
 			return fmt.Errorf("encoding slice len: %w", err)
 		}
 
-		elemType := v.Index(0).Type()
-
 		// Encode slice with underlying type of variable size.
-		if elemType.Implements(reflectEncodeByteWriter) ||
-			elemType.Implements(reflectEncodeWriter) ||
-			elemType.Implements(reflectEncoder) ||
-			elemType.Implements(reflectBinaryMarshaller) {
-			for i := range sliceLen {
-				f := v.Index(i)
+		for i := range sliceLen {
+			f := v.Index(i)
 
-				if err := encodeValueWithInterfaces(b, f, f.Type(), allowUnsafe); err != nil {
-					return fmt.Errorf("encoding %s index %d of type %s: %w", v.Kind().String(), i, f.Type().String(), err)
-				}
-			}
-		} else {
-			for i := range sliceLen {
-				f := v.Index(i)
-
-				if err := encodeValue(b, f, f.Type(), allowUnsafe); err != nil {
-					return fmt.Errorf("encoding %s index %d of type %s: %w", v.Kind().String(), i, f.Type().String(), err)
-				}
+			if err := encodeValue(b, f, f.Type(), allowUnsafe); err != nil {
+				return fmt.Errorf("encoding %s index %d of type %s: %w", v.Kind().String(), i, f.Type().String(), err)
 			}
 		}
 
@@ -297,6 +247,68 @@ func encodeValue(b *bytes.Buffer, v reflect.Value, t reflect.Type, allowUnsafe b
 		}
 
 		return nil
+	case reflect.Interface:
+		switch {
+		case t.Implements(reflectEncodeByteWriter):
+			encodeByteWriter, ok := v.Interface().(EncodeByteWriter)
+			if !ok {
+				return fmt.Errorf("%w: casting value to EncodeByteWriter", ErrTypeAssertion)
+			}
+
+			return encodeByteWriter.EncodeBuffer(b)
+		case t.Implements(reflectEncodeWriter):
+			encodeWriter, ok := v.Interface().(EncodeWriter)
+			if !ok {
+				return fmt.Errorf("%w: casting value to EncodeWriter", ErrTypeAssertion)
+			}
+
+			_, err := encodeWriter.EncodeWrite(b)
+			return err
+		case t.Implements(reflectEncoder):
+			encoder, ok := v.Interface().(Encoder)
+			if !ok {
+				return fmt.Errorf("%w: casting value to Encoder", ErrTypeAssertion)
+			}
+
+			d, err := encoder.Encode()
+			if err != nil {
+				return err
+			}
+
+			_, err = b.Write(d)
+			return err
+		case t.Implements(reflectBinaryMarshaller):
+			binaryMarshaler, ok := v.Interface().(encoding.BinaryMarshaler)
+			if !ok {
+				return fmt.Errorf("%w: casting value to encoding.BinaryMarshaler", ErrTypeAssertion)
+			}
+
+			d, err := binaryMarshaler.MarshalBinary()
+			if err != nil {
+				return err
+			}
+
+			_, err = b.Write(d)
+			return err
+		case t.Implements(reflectError):
+			encodingErr, ok := v.Interface().(error)
+			if !ok {
+				return fmt.Errorf("%w: casting value to error", ErrTypeAssertion)
+			}
+
+			errVal := reflect.ValueOf(encodingErr.Error())
+			return encodeValue(b, errVal, errVal.Type(), allowUnsafe)
+		case t.Implements(reflectStringer):
+			stringer, ok := v.Interface().(fmt.Stringer)
+			if !ok {
+				return fmt.Errorf("%w: casting value to error", ErrTypeAssertion)
+			}
+
+			stringVal := reflect.ValueOf(stringer.String())
+			return encodeValue(b, stringVal, stringVal.Type(), allowUnsafe)
+		default:
+			return fmt.Errorf("encoding of interface of type %s is not supported", t.String())
+		}
 	default:
 		return fmt.Errorf("encoding of type %s is not supported", t.String())
 	}
