@@ -8,7 +8,11 @@ goRPC is a dependency free, HTTP/2 based RPC protocol that makes use of goc enco
 
 goc is a Go-only encoding method inspired by gob and Protobuf.
 
-# Ideas
+## To-do
+
+* Fix tests
+
+## Ideas
 
 * Optimizations:
     - Encode map as []key + []val, to more efficiently encode/decode values.

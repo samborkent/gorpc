@@ -135,7 +135,7 @@ func handler[Request, Response any](h HandlerFunc[Request, Response], cfg handle
 		// Call handler func.
 		res, err := h(r.Context(), &req)
 		if err != nil {
-			// If handler func returns an [Error], return it as HTTP error.
+			// If handler func returns an [*Error], return it as HTTP error.
 			var e *Error
 			if errors.As(err, &e) {
 				http.Error(w, e.Text, e.Code)
