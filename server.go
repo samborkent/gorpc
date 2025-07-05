@@ -60,19 +60,20 @@ func NewServer(port int, options ...ServerOption) (*Server, error) {
 	}, nil
 }
 
-// Register registers a [HandlerFunc] to a goRPC [Server]. Panics when the server is already running.
-func Register[Request, Response any](s *Server, h HandlerFunc[Request, Response], options ...RegisterOption) {
+// RegisterHandler registers a [HandlerFunc] to a goRPC [Server]. It also allows registering custom [Middleware].
+// Panics when the server is already running.
+func RegisterHandler[Request, Response any](s *Server, h HandlerFunc[Request, Response], middleware ...Middleware[Request, Response]) {
 	if s.running.Load() {
 		panic("goRPC: cannot register a new handler for a running server")
 	}
 
-	cfg := defaultRegisterConfig
-	for _, option := range options {
-		option(&cfg)
-	}
-
 	if s.validate {
 		h = ValidationMiddleware(h)
+	}
+
+	// Apply middleware.
+	for _, m := range middleware {
+		h = m(h)
 	}
 
 	hc := handlerConfig{
@@ -80,7 +81,7 @@ func Register[Request, Response any](s *Server, h HandlerFunc[Request, Response]
 		useGob:        s.useGob,
 	}
 
-	s.mux.Handle(string(cfg.method)+" /"+h.Hash(), handler(h, hc))
+	s.mux.Handle("POST /"+h.Hash(), handler(h, hc))
 }
 
 // Addr returns the server address.

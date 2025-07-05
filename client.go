@@ -1,7 +1,6 @@
 package gorpc
 
 import (
-	"bytes"
 	"context"
 	"encoding/gob"
 	"fmt"
@@ -22,13 +21,13 @@ type Client[Request, Response any] struct {
 	cache                           isync.Map[uint64, weak.Pointer[Response]]
 	client                          *http.Client
 	addr, hash                      string
-	method                          Method
 	seed                            maphash.Seed
 	cacheResponse, useGob, validate bool
+	roundTripper                    RoundTripperFunc[Request, Response]
 }
 
 func NewClient[Request, Response any](addr string, options ...ClientOption) (*Client[Request, Response], error) {
-	cfg := defaultClientConfig
+	cfg := clientConfig{}
 	for _, option := range options {
 		if err := option(&cfg); err != nil {
 			return nil, err
@@ -57,16 +56,26 @@ func NewClient[Request, Response any](addr string, options ...ClientOption) (*Cl
 	// 	addr = "https://" + addr
 	// }
 
-	return &Client[Request, Response]{
+	c := &Client[Request, Response]{
 		client:        client,
 		addr:          addr,
 		hash:          hash,
 		seed:          maphash.MakeSeed(),
-		method:        cfg.method,
 		cacheResponse: cfg.cacheResponse,
 		useGob:        cfg.gob,
 		validate:      cfg.validate,
-	}, nil
+	}
+
+	c.roundTripper = c.do
+
+	return c, nil
+}
+
+// RegisterRoundTripper registers a custom round tripper for a given client.
+func RegisterRoundTripper[Request, Response any](client *Client[Request, Response], roundtrippers ...RoundTripper[Request, Response]) {
+	for _, roundTripper := range roundtrippers {
+		client.roundTripper = roundTripper(client.roundTripper)
+	}
 }
 
 func (c *Client[Request, Response]) Do(ctx context.Context, req *Request) (*Response, error) {
@@ -75,10 +84,10 @@ func (c *Client[Request, Response]) Do(ctx context.Context, req *Request) (*Resp
 	}
 
 	if c.validate {
-		return ValidationRoundTripper(c.do)(ctx, req)
+		return ValidationRoundTripper(c.roundTripper)(ctx, req)
 	}
 
-	return c.do(ctx, req)
+	return c.roundTripper(ctx, req)
 }
 
 func (c *Client[Request, Response]) do(ctx context.Context, req *Request) (*Response, error) {
@@ -99,13 +108,15 @@ func (c *Client[Request, Response]) do(ctx context.Context, req *Request) (*Resp
 		body = buf
 		data = buf.Bytes()
 	} else {
-		// TODO: use []byte pool
-		data, err = goc.Encode(req)
-		if err != nil {
+		buf := clientPool.Get()
+		defer clientPool.Put(buf)
+
+		if err := goc.EncodeByteWrite(buf, req); err != nil {
 			return nil, fmt.Errorf("encoding request: %w", err)
 		}
 
-		body = bytes.NewReader(data)
+		body = buf
+		data = buf.Bytes()
 	}
 
 	var (
@@ -120,12 +131,15 @@ func (c *Client[Request, Response]) do(ctx context.Context, req *Request) (*Resp
 
 		cachedResponse, ok = c.cache.Load(payloadHash)
 		if ok && cachedResponse.Value() != nil {
-			// TODO: resolve race-condition
-			return cachedResponse.Value(), nil
+			response := cachedResponse.Value()
+
+			if response != nil {
+				return response, nil
+			}
 		}
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, string(c.method), c.addr, body)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.addr, body)
 	if err != nil {
 		return nil, fmt.Errorf("initializing request: %w", err)
 	}

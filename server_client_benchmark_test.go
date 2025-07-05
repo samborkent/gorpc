@@ -199,7 +199,7 @@ func BenchmarkGoRPC(b *testing.B) {
 		b.Fatal("new server error: " + err.Error())
 	}
 
-	gorpc.Register(server, gorpc.HandlerFunc[Object, Object](func(ctx context.Context, req *Object) (*Object, error) {
+	gorpc.RegisterHandler(server, gorpc.HandlerFunc[Object, Object](func(ctx context.Context, req *Object) (*Object, error) {
 		object := newObject()
 		return &object, nil
 	}))
@@ -236,7 +236,7 @@ func BenchmarkGoRPCGob(b *testing.B) {
 		b.Fatal("new server error: " + err.Error())
 	}
 
-	gorpc.Register(server, gorpc.HandlerFunc[Object, Object](func(ctx context.Context, req *Object) (*Object, error) {
+	gorpc.RegisterHandler(server, gorpc.HandlerFunc[Object, Object](func(ctx context.Context, req *Object) (*Object, error) {
 		object := newObject()
 		return &object, nil
 	}))

@@ -6,7 +6,6 @@ import (
 	"encoding/gob"
 	"errors"
 	"hash/maphash"
-	"io"
 	"net/http"
 	"unique"
 	"weak"
@@ -25,13 +24,14 @@ func (h HandlerFunc[Request, Response]) Hash() string {
 }
 
 const (
-	httpErrInvalidMethod       = "Invalid HTTP method"
-	httpErrInvalidContentType  = "Invalid Content-Type header value"
-	httpErrInvalidAcceptHeader = "Accept header does not allow goc encoding"
-	httpErrMissingMethodHash   = "Missing X-Method-Hash header"
-	httpErrInvalidMethodHash   = "Invalid X-Method-Hash header value"
-	httpErrRequest             = "Error decoding request"
-	httpErrResponse            = "Error encoding or writing response"
+	httpErrInvalidMethod        = "Invalid HTTP method"
+	httpErrInvalidContentType   = "Invalid Content-Type header value"
+	httpErrInvalidAcceptHeader  = "Accept header does not allow goc encoding"
+	httpErrMissingMethodHash    = "Missing X-Method-Hash header"
+	httpErrInvalidMethodHash    = "Invalid X-Method-Hash header value"
+	httpErrMissingContentLength = "Missing content length of request"
+	httpErrRequest              = "Error decoding request"
+	httpErrResponse             = "Error encoding or writing response"
 )
 
 func handler[Request, Response any](h HandlerFunc[Request, Response], cfg handlerConfig) http.HandlerFunc {
@@ -82,7 +82,12 @@ func handler[Request, Response any](h HandlerFunc[Request, Response], cfg handle
 			return
 		}
 
-		// TODO; reject requests which have content length not set
+		contentLen := int(r.ContentLength)
+
+		if contentLen == -1 {
+			http.Error(w, httpErrInvalidMethodHash, http.StatusBadRequest)
+			return
+		}
 
 		var (
 			req         Request
@@ -92,24 +97,25 @@ func handler[Request, Response any](h HandlerFunc[Request, Response], cfg handle
 
 		// Decode request.
 		if cfg.cacheResponse {
-			// TODO: read until content length
-			body, err := io.ReadAll(r.Body)
+			// TODO: use sync.Pool?
+			buf := make([]byte, r.ContentLength)
+
+			_, err := r.Body.Read(buf)
 			_ = r.Body.Close()
 			if err != nil {
-				// TODO: revise error
 				http.Error(w, httpErrRequest, http.StatusBadRequest)
 				return
 			}
 
-			payloadHash = maphash.Bytes(seed, body)
+			payloadHash = maphash.Bytes(seed, buf)
 
 			res, ok := cache.Load(payloadHash)
 			if ok && res.Value() != nil {
 				// TODO: move to separate handler
 				if cfg.useGob {
-					err = gob.NewDecoder(bytes.NewReader(body)).Decode(&req)
+					err = gob.NewDecoder(bytes.NewReader(buf)).Decode(&req)
 				} else {
-					err = goc.Decode(body, &req)
+					err = goc.Decode(buf, &req)
 				}
 
 				if err != nil {

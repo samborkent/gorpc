@@ -22,7 +22,7 @@ func TestServerClient(t *testing.T) {
 		t.Fatal("got server error: " + err.Error())
 	}
 
-	gorpc.Register(server, testHandler)
+	gorpc.RegisterHandler(server, testHandler)
 
 	go func() {
 		if err := server.Start(t.Context()); err != nil {

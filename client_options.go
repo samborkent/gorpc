@@ -69,20 +69,6 @@ func WithHTTPClient(client *http.Client) ClientOption {
 	}
 }
 
-// WithClientMethod specifies the HTTP method to use for the request. Default is POST.
-func WithClientMethod(method Method) ClientOption {
-	return func(cfg *clientConfig) error {
-		if cfg.witClienthMethod {
-			return ErrOptionDuplicate
-		}
-
-		cfg.method = method
-		cfg.witClienthMethod = true
-
-		return nil
-	}
-}
-
 type clientConfig struct {
 	cacheResponse bool
 	withCache     bool
@@ -93,13 +79,6 @@ type clientConfig struct {
 	gob     bool
 	withGob bool
 
-	method           Method
-	witClienthMethod bool
-
 	validate       bool
 	withValidation bool
-}
-
-var defaultClientConfig = clientConfig{
-	method: MethodPost,
 }
