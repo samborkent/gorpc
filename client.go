@@ -47,9 +47,19 @@ func NewClient[Request, Response any](addr string, options ...ClientOption) (*Cl
 		}
 	}
 
+	// Trim trailing slashes and append method hash.
+	addr = strings.TrimRight(addr, "/") + "/" + hash
+
+	// TODO: enable once TLS support is implemented.
+	// // Ensure address if a valid HTTP/S address.
+	// addr, found := strings.CutPrefix(addr, "http://")
+	// if found || !strings.HasPrefix(addr, "httsp://") {
+	// 	addr = "https://" + addr
+	// }
+
 	return &Client[Request, Response]{
 		client:        client,
-		addr:          strings.TrimRight(addr, "/") + "/" + hash,
+		addr:          addr,
 		hash:          hash,
 		seed:          maphash.MakeSeed(),
 		method:        cfg.method,
