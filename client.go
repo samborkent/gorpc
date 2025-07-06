@@ -1,24 +1,29 @@
 package gorpc
 
 import (
-	"bytes"
 	"context"
+	"encoding/gob"
 	"fmt"
 	"hash/maphash"
+	"io"
 	"net/http"
 	"strings"
 	"weak"
 
 	"github.com/samborkent/gorpc/goc"
+	"github.com/samborkent/gorpc/internal/pool"
 	isync "github.com/samborkent/gorpc/internal/sync"
 )
 
+var clientPool = pool.NewBytesBuffer()
+
 type Client[Request, Response any] struct {
-	client                  *http.Client
-	addr, hash              string
-	cache                   isync.Map[uint64, weak.Pointer[Response]]
-	seed                    maphash.Seed
-	cacheResponse, validate bool
+	cache                           isync.Map[uint64, weak.Pointer[Response]]
+	client                          *http.Client
+	addr, hash                      string
+	seed                            maphash.Seed
+	cacheResponse, useGob, validate bool
+	roundTripper                    RoundTripperFunc[Request, Response]
 }
 
 func NewClient[Request, Response any](addr string, options ...ClientOption) (*Client[Request, Response], error) {
@@ -41,14 +46,36 @@ func NewClient[Request, Response any](addr string, options ...ClientOption) (*Cl
 		}
 	}
 
-	return &Client[Request, Response]{
+	// Trim trailing slashes and append method hash.
+	addr = strings.TrimRight(addr, "/") + "/" + hash
+
+	// TODO: enable once TLS support is implemented.
+	// // Ensure address if a valid HTTP/S address.
+	// addr, found := strings.CutPrefix(addr, "http://")
+	// if found || !strings.HasPrefix(addr, "httsp://") {
+	// 	addr = "https://" + addr
+	// }
+
+	c := &Client[Request, Response]{
 		client:        client,
-		addr:          strings.TrimRight(addr, "/") + "/" + hash,
+		addr:          addr,
 		hash:          hash,
 		seed:          maphash.MakeSeed(),
 		cacheResponse: cfg.cacheResponse,
+		useGob:        cfg.gob,
 		validate:      cfg.validate,
-	}, nil
+	}
+
+	c.roundTripper = c.do
+
+	return c, nil
+}
+
+// RegisterRoundTripper registers a custom round tripper for a given client.
+func RegisterRoundTripper[Request, Response any](client *Client[Request, Response], roundtrippers ...RoundTripper[Request, Response]) {
+	for _, roundTripper := range roundtrippers {
+		client.roundTripper = roundTripper(client.roundTripper)
+	}
 }
 
 func (c *Client[Request, Response]) Do(ctx context.Context, req *Request) (*Response, error) {
@@ -57,17 +84,39 @@ func (c *Client[Request, Response]) Do(ctx context.Context, req *Request) (*Resp
 	}
 
 	if c.validate {
-		return ValidationRoundTripper(c.do)(ctx, req)
+		return ValidationRoundTripper(c.roundTripper)(ctx, req)
 	}
 
-	return c.do(ctx, req)
+	return c.roundTripper(ctx, req)
 }
 
 func (c *Client[Request, Response]) do(ctx context.Context, req *Request) (*Response, error) {
-	// TODO: use []byte pool
-	data, err := goc.Encode(req)
-	if err != nil {
-		return nil, fmt.Errorf("encoding request: %w", err)
+	var (
+		body io.Reader
+		data []byte
+		err  error
+	)
+
+	if c.useGob {
+		buf := clientPool.Get()
+		defer clientPool.Put(buf)
+
+		if err := gob.NewEncoder(buf).Encode(req); err != nil {
+			return nil, fmt.Errorf("encoding request: %w", err)
+		}
+
+		body = buf
+		data = buf.Bytes()
+	} else {
+		buf := clientPool.Get()
+		defer clientPool.Put(buf)
+
+		if err := goc.EncodeByteWrite(buf, req); err != nil {
+			return nil, fmt.Errorf("encoding request: %w", err)
+		}
+
+		body = buf
+		data = buf.Bytes()
 	}
 
 	var (
@@ -82,18 +131,27 @@ func (c *Client[Request, Response]) do(ctx context.Context, req *Request) (*Resp
 
 		cachedResponse, ok = c.cache.Load(payloadHash)
 		if ok && cachedResponse.Value() != nil {
-			// TODO: resolve race-condition
-			return cachedResponse.Value(), nil
+			response := cachedResponse.Value()
+
+			if response != nil {
+				return response, nil
+			}
 		}
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.addr, bytes.NewReader(data))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.addr, body)
 	if err != nil {
 		return nil, fmt.Errorf("initializing request: %w", err)
 	}
 
-	httpReq.Header.Add(HeaderAccept, MIMEType)
-	httpReq.Header.Add(HeaderContentType, MIMEType)
+	if c.useGob {
+		httpReq.Header.Add(HeaderAccept, MIMETypeGob)
+		httpReq.Header.Add(HeaderContentType, MIMETypeGob)
+	} else {
+		httpReq.Header.Add(HeaderAccept, MIMETypeGoc)
+		httpReq.Header.Add(HeaderContentType, MIMETypeGoc)
+	}
+
 	httpReq.Header.Add(HeaderMethodHash, c.hash)
 	httpReq.ContentLength = int64(len(data))
 
@@ -108,8 +166,14 @@ func (c *Client[Request, Response]) do(ctx context.Context, req *Request) (*Resp
 
 	var res Response
 
-	err = goc.DecodeRead(httpRes.Body, &res)
+	if c.useGob {
+		err = gob.NewDecoder(httpRes.Body).Decode(&res)
+	} else {
+		err = goc.DecodeRead(httpRes.Body, &res)
+	}
+
 	_ = httpRes.Body.Close()
+
 	if err != nil {
 		return nil, fmt.Errorf("decoding response: %w", err)
 	}

@@ -9,7 +9,8 @@ type ClientOption func(*clientConfig) error
 
 var ErrClientNil = errors.New("WithHTTPClient: client nil-pointer")
 
-func WithCache() ClientOption {
+// WithClientCache enables a weak response cache for the goRPC client.
+func WithClientCache() ClientOption {
 	return func(cfg *clientConfig) error {
 		if cfg.withCache {
 			return ErrOptionDuplicate
@@ -22,6 +23,35 @@ func WithCache() ClientOption {
 	}
 }
 
+// WithClientValidation enables request and response validation for the goRPC client.
+func WithClientValidation() ClientOption {
+	return func(cfg *clientConfig) error {
+		if cfg.withValidation {
+			return ErrOptionDuplicate
+		}
+
+		cfg.validate = true
+		cfg.withValidation = true
+
+		return nil
+	}
+}
+
+// WithGobClient enables gob encoding instead of goc encoding for the client.
+func WithGobClient() ClientOption {
+	return func(cfg *clientConfig) error {
+		if cfg.withGob {
+			return ErrOptionDuplicate
+		}
+
+		cfg.gob = true
+		cfg.withGob = true
+
+		return nil
+	}
+}
+
+// WithHTTPClient allows the goRPC internal HTTP client to overwritten with a custom client.
 func WithHTTPClient(client *http.Client) ClientOption {
 	return func(cfg *clientConfig) error {
 		if cfg.withHTTPClient {
@@ -39,25 +69,15 @@ func WithHTTPClient(client *http.Client) ClientOption {
 	}
 }
 
-func WithClientValidation() ClientOption {
-	return func(cfg *clientConfig) error {
-		if cfg.withValidation {
-			return ErrOptionDuplicate
-		}
-
-		cfg.validate = true
-		cfg.withValidation = true
-
-		return nil
-	}
-}
-
 type clientConfig struct {
 	cacheResponse bool
 	withCache     bool
 
 	client         *http.Client
 	withHTTPClient bool
+
+	gob     bool
+	withGob bool
 
 	validate       bool
 	withValidation bool

@@ -1,0 +1,8 @@
+2025-07-05 Plugged-in
+Initial benchmark to compare regular HTTP/JSON client-server versus goRPC
+Results are worse than expected, maybe due to generics? There seems to be an issue with gob implementation, as number of allocations should be similar to goc.
+
+BenchmarkHTTPJSONV1-16              8623            139589 ns/op           15237 B/op        186 allocs/op
+BenchmarkHTTPJSONV2-16              7773            130999 ns/op           10448 B/op        153 allocs/op
+BenchmarkGoRPC-16                   5864            188305 ns/op           15388 B/op        198 allocs/op
+BenchmarkGoRPCGob-16                4365            253485 ns/op           44537 B/op        601 allocs/op

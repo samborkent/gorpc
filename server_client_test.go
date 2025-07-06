@@ -17,14 +17,12 @@ import (
 func TestServerClient(t *testing.T) {
 	t.Parallel()
 
-	t.Log(gorpc.HandlerFunc[request, response](testHandler).Hash())
-
 	server, err := gorpc.NewServer(-1)
 	if err != nil {
 		t.Fatal("got server error: " + err.Error())
 	}
 
-	gorpc.Register(server, testHandler)
+	gorpc.RegisterHandler(server, testHandler)
 
 	go func() {
 		if err := server.Start(t.Context()); err != nil {
@@ -47,7 +45,7 @@ func TestServerClient(t *testing.T) {
 			t.Fatal("expected error")
 		}
 
-		if !strings.Contains(err.Error(), "404 Not Found") {
+		if !strings.Contains(err.Error(), http.StatusText(http.StatusNotFound)) {
 			t.Error("expected not found error: " + err.Error())
 		}
 
@@ -100,7 +98,7 @@ func testHandler(ctx context.Context, req *request) (*response, error) {
 		return &successResponse, nil
 	default:
 		return nil, &gorpc.Error{
-			Code: http.StatusUnavailableForLegalReasons,
+			Code: http.StatusNotFound,
 			Text: "FOOBAR",
 		}
 	}

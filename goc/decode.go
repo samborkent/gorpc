@@ -16,45 +16,7 @@ import (
 
 func decodeReader[T any](in *bytes.Reader, out *T, allowUnsafe bool) error {
 	v := reflect.ValueOf(out)
-	return decodeValueWithInterfaces(in, v, v.Type(), allowUnsafe)
-}
-
-var (
-	reflectDecodeByteReader   = reflect.TypeFor[DecodeByteReader]()
-	reflectDecodeReader       = reflect.TypeFor[DecodeReader]()
-	reflectDecoder            = reflect.TypeFor[Decoder]()
-	reflectBinaryUnmarshaller = reflect.TypeFor[encoding.BinaryUnmarshaler]()
-)
-
-func decodeValueWithInterfaces(r *bytes.Reader, v reflect.Value, t reflect.Type, allowUnsafe bool) error {
-	switch {
-	case t.Implements(reflectDecodeByteReader):
-		return v.Interface().(DecodeByteReader).DecodeByteRead(r)
-	case t.Implements(reflectDecodeReader):
-		return v.Interface().(DecodeReader).DecodeRead(r)
-	case t.Implements(reflectDecoder):
-		buf := decodingPool.Get()
-		defer decodingPool.Put(buf)
-
-		_, err := r.WriteTo(buf)
-		if err != nil {
-			return err
-		}
-
-		return v.Interface().(Decoder).Decode(buf.Bytes())
-	case t.Implements(reflectBinaryUnmarshaller):
-		buf := decodingPool.Get()
-		defer decodingPool.Put(buf)
-
-		_, err := r.WriteTo(buf)
-		if err != nil {
-			return err
-		}
-
-		return v.Interface().(encoding.BinaryUnmarshaler).UnmarshalBinary(buf.Bytes())
-	default:
-		return decodeValue(r, v, t, allowUnsafe)
-	}
+	return decodeValue(in, v, v.Type(), allowUnsafe)
 }
 
 func decodeValue(r *bytes.Reader, v reflect.Value, t reflect.Type, allowUnsafe bool) error {
@@ -283,6 +245,75 @@ func decodeValue(r *bytes.Reader, v reflect.Value, t reflect.Type, allowUnsafe b
 		}
 
 		return nil
+	case reflect.Interface:
+		switch {
+		case t.Implements(reflectDecodeByteReader):
+			decodeByteReader, ok := v.Interface().(DecodeByteReader)
+			if !ok {
+				return fmt.Errorf("%w: casting value to DecodeByteReader", ErrTypeAssertion)
+			}
+
+			return decodeByteReader.DecodeByteRead(r)
+		case t.Implements(reflectDecodeReader):
+			decodeByteReader, ok := v.Interface().(DecodeReader)
+			if !ok {
+				return fmt.Errorf("%w: casting value to DecodeReader", ErrTypeAssertion)
+			}
+
+			return decodeByteReader.DecodeRead(r)
+		case t.Implements(reflectDecoder):
+			decoder, ok := v.Interface().(Decoder)
+			if !ok {
+				return fmt.Errorf("%w: casting value to Decoder", ErrTypeAssertion)
+			}
+
+			buf := decodingPool.Get()
+			defer decodingPool.Put(buf)
+
+			_, err := r.WriteTo(buf)
+			if err != nil {
+				return err
+			}
+
+			return decoder.Decode(buf.Bytes())
+		case t.Implements(reflectBinaryUnmarshaller):
+			binaryUnmarshaler, ok := v.Interface().(encoding.BinaryUnmarshaler)
+			if !ok {
+				return fmt.Errorf("%w: casting value to encoding.BinaryUnmarshaler", ErrTypeAssertion)
+			}
+
+			buf := decodingPool.Get()
+			defer decodingPool.Put(buf)
+
+			_, err := r.WriteTo(buf)
+			if err != nil {
+				return err
+			}
+
+			return binaryUnmarshaler.UnmarshalBinary(buf.Bytes())
+		case t.Implements(reflectError):
+			str := ""
+			strVal := reflect.ValueOf(&str)
+
+			if err := decodeValue(r, strVal, strVal.Type(), allowUnsafe); err != nil {
+				return err
+			}
+
+			v.Set(reflect.ValueOf(errors.New(str)))
+			return nil
+		case t.Implements(reflectStringer):
+			str := ""
+			strVal := reflect.ValueOf(&str)
+
+			if err := decodeValue(r, strVal, strVal.Type(), allowUnsafe); err != nil {
+				return err
+			}
+
+			v.Set(reflect.ValueOf(fmt.Stringer(bytes.NewBufferString(str))))
+			return nil
+		default:
+			return fmt.Errorf("decoding of interface of type %s is not supported", t.String())
+		}
 	default:
 		return fmt.Errorf("decoding of type %s is not supported", t.String())
 	}

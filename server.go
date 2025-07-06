@@ -13,11 +13,11 @@ import (
 
 // Server implements a goRPC server.
 type Server struct {
-	mux                     *http.ServeMux
-	server                  *http.Server
-	running                 atomic.Bool
-	port                    int
-	cacheResponse, validate bool
+	mux                             *http.ServeMux
+	server                          *http.Server
+	port                            int
+	running                         atomic.Bool
+	cacheResponse, useGob, validate bool
 }
 
 const (
@@ -54,13 +54,15 @@ func NewServer(port int, options ...ServerOption) (*Server, error) {
 		mux:           http.NewServeMux(),
 		server:        server,
 		port:          port,
-		cacheResponse: cfg.validate,
+		cacheResponse: cfg.cacheResponse,
+		useGob:        cfg.gob,
 		validate:      cfg.validate,
 	}, nil
 }
 
-// Register registers a [HandlerFunc] to a goRPC [Server]. Panics when the server is already running.
-func Register[Request, Response any](s *Server, h HandlerFunc[Request, Response]) {
+// RegisterHandler registers a [HandlerFunc] to a goRPC [Server]. It also allows registering custom [Middleware].
+// Panics when the server is already running.
+func RegisterHandler[Request, Response any](s *Server, h HandlerFunc[Request, Response], middleware ...Middleware[Request, Response]) {
 	if s.running.Load() {
 		panic("goRPC: cannot register a new handler for a running server")
 	}
@@ -69,7 +71,17 @@ func Register[Request, Response any](s *Server, h HandlerFunc[Request, Response]
 		h = ValidationMiddleware(h)
 	}
 
-	s.mux.Handle("POST /"+h.Hash(), handler(h, s.cacheResponse))
+	// Apply middleware.
+	for _, m := range middleware {
+		h = m(h)
+	}
+
+	hc := handlerConfig{
+		cacheResponse: s.cacheResponse,
+		useGob:        s.useGob,
+	}
+
+	s.mux.Handle("POST /"+h.Hash(), handler(h, hc))
 }
 
 // Addr returns the server address.

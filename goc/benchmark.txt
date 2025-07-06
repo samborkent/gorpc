@@ -103,3 +103,24 @@ json: 344
 json/v2: 343
 gob: 391
 goc: 298
+
+
+2025-06-25 18:44 Plugged-in
+1 allocation regressions. Encoding is now slightly faster than gob.
+Unsafe does not provide desired optimizations. Focus on decoding performance.
+
+BenchmarkJSONV1Encode-16          461244              2680 ns/op             354 B/op          9 allocs/op
+BenchmarkJSONV1Decode-16          303902              3494 ns/op             515 B/op         16 allocs/op
+BenchmarkJSONV2Encode-16          521184              2331 ns/op             289 B/op          5 allocs/op
+BenchmarkJSONV2Decode-16          305388              3481 ns/op             771 B/op         18 allocs/op
+BenchmarkGobEncode-16             863323              1363 ns/op             192 B/op          9 allocs/op
+BenchmarkGobDecode-16             611509              1866 ns/op             760 B/op         15 allocs/op
+BenchmarkGocEncode-16             893950              1261 ns/op             208 B/op         10 allocs/op
+BenchmarkGocDecode-16             600348              1988 ns/op             696 B/op         16 allocs/op
+BenchmarkGocEncodeUnsafe-16       855986              1267 ns/op             208 B/op         10 allocs/op
+BenchmarkGocDecodeUnsafe-16       577202              1954 ns/op             696 B/op         16 allocs/op
+
+json: 345
+json/v2: 344
+gob: 391
+goc: 298
