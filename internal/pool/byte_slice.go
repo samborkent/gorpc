@@ -12,9 +12,9 @@ func NewByteSlice(size int) *ByteSlice {
 		pool: sync.Pool{
 			New: func() any {
 				b := make([]byte, 0, size)
-				retuen &b
-			}
-		}
+				return &b
+			},
+		},
 		init: true,
 	}
 }
@@ -24,6 +24,7 @@ func (p *ByteSlice) Get() *[]byte {
 }
 
 func (p *ByteSlice) Put(b *[]byte) {
-	*b = b[:0]
+	buf := *b
+	*b = buf[:0]
 	p.pool.Put(b)
 }

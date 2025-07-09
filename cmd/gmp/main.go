@@ -1,68 +1,140 @@
 package main
 
-type Message struct {
+import (
+	"bytes"
+	"context"
+	"log/slog"
+	"math"
+	"net"
+	"os"
+	"os/signal"
+	"unsafe"
+)
+
+const (
+	headerSize    = unsafe.Sizeof(Header{})
+	maxPacketSize = 1214
+	maxPacketNum  = uint32(math.MaxUint32 / headerSize)
+)
+
+type Packet struct {
 	Header
-	Packets []Packet
+	Data []byte
 }
 
 type Header struct {
-	seqNo      uint32
-	msgID      uint64
-	numPackets uint32
-}
-
-type Packet struct {
-	seqNo  uint32
-	length uint16
-	data   []byte
+	ConnID     uint64
+	MsgID      uint64
+	MsgSize    uint32
+	NumPackets uint32
+	Index      uint32
+	Size       uint16
 }
 
 type Server struct {
-	listener *net.UDPListener
+	// handlers map[uint64]handlerFunc
+	logger *slog.Logger
+	port   int
 }
 
 func main() {
-	ctx := context.TODO()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Kill, os.Interrupt)
+	defer stop()
 
-	server := &Server{}
+	server := &Server{
+		// conns:  make(map[uint64]chan Packet),
+		port:   8080,
+		logger: slog.New(slog.NewJSONHandler(os.Stderr, nil)),
+	}
 
-connLoop:
+	<-server.Listen(ctx)
+}
+
+func (s *Server) Listen(ctx context.Context) <-chan error {
+	errs := make(chan error)
+
+	go func() {
+		defer close(errs)
+
+	connLoop:
+		for {
+			select {
+			case <-ctx.Done():
+				break connLoop
+			default:
+				conn, err := net.ListenUDP("udp", &net.UDPAddr{
+					IP:   net.IPv6zero,
+					Port: s.port,
+				})
+				if err != nil {
+					errs <- err
+					continue
+				}
+
+				go s.handleConn(ctx, conn)
+			}
+		}
+	}()
+
+	return errs
+}
+
+func (s *Server) handleConn(ctx context.Context, conn *net.UDPConn) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.logger.ErrorContext(ctx, r.(error).Error())
+		}
+	}()
+
+	defer func() {
+		if err := conn.Close(); err != nil {
+			s.logger.WarnContext(ctx, "closing connection: "+err.Error())
+		}
+	}()
+
+	// TODO: use sync.Pool
+	buf := &bytes.Buffer{}
+
 	for {
 		select {
 		case <-ctx.Done():
-			break connLoop
+			return
 		default:
-			conn := listener.Accept()
-			go handleConn(ctx, conn)
+			var headerBytes [headerSize]byte
+
+			_, err := conn.Read(headerBytes[:])
+			if err != nil {
+				panic(err)
+			}
+
+			header := *(*Header)(unsafe.Pointer(&headerBytes[0]))
+
+			// Ignore empty / invalid packets.
+			if header.ConnID == 0 ||
+				header.MsgID == 0 ||
+				header.MsgSize == 0 ||
+				header.NumPackets == 0 ||
+				header.NumPackets > maxPacketNum ||
+				header.Index > header.NumPackets-1 ||
+				header.Size == 0 ||
+				header.Size > maxPacketSize {
+				return
+			}
+
+			// TODO: use sync.Pool
+			data := make([]byte, header.Size)
+
+			_, err = conn.Read(data)
+			if err != nil {
+				panic(err)
+			}
+
+			buf.Write(data)
+
+			if buf.Len() == int(header.MsgSize) {
+			}
 		}
 	}
 }
 
-func handleConn(ctx context.Context, conn *net.UDPConn) {
-	// TODO: recover
-
-	defer conn.Close()
-
-	var b [unsafe.Sizeof(Header)]byte
-
-	_, err := conn.Read(b[:])
-	if err != nil {
-		panic(err)
-	}
-
-	header := *(*Header)(unsafe.Pointer(&b[0]))
-
-	if header.seqNo != 0 ||
-		header.msgID == 0 ||
-		header.numPackets == 0 {
-		return
-	}
-
-	for range header.numPackets {
-		// TODO: read max package size for each packet to buffer
-	}
-
-	// TODO: decode buffer into packets
-	// TODO: decode packets into message
-	// TODO: decode message into request
-}
+// type handlerFunc func(ctx context.Context, conn *net.UDPConn, buf *bytes.Buffer) error
